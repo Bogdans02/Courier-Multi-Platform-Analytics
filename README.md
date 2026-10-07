@@ -2,11 +2,13 @@
 
 Aplikacja Android do rejestrowania i analizy pracy kuriera korzystającego z jednej lub kilku platform dostawczych, takich jak Glovo, Bolt Food czy Uber Eats.
 
+Projekt jest w trakcie realizacji.
+
 ## Cel projektu
 
 Celem systemu jest zebranie danych o pracy kuriera w jednym miejscu i umożliwienie analizy własnej efektywności niezależnie od konkretnej platformy.
 
-Aplikacja ma umożliwiać m.in.:
+Docelowo aplikacja ma umożliwiać m.in.:
 
 - rejestrowanie zmian roboczych,
 - zapisywanie zarobków i liczby zamówień dla jednej lub wielu platform,
@@ -19,21 +21,27 @@ Aplikacja ma umożliwiać m.in.:
 
 ## Technologie
 
+Poniższy zestaw opisuje docelowy stack projektu.
+
 ### Frontend / Android
+
 - React
 - Tailwind CSS
 - Chart.js
 - Capacitor
 
 ### Backend
+
 - Node.js
 - Express.js
 - REST API
 
 ### Baza danych
+
 - PostgreSQL
 
 ### Bezpieczeństwo
+
 - JWT
 - hashowanie haseł
 - autoryzacja zasobów użytkownika
@@ -55,7 +63,7 @@ REST API
 PostgreSQL
 ```
 
-## Główny flow
+## Docelowy flow
 
 ```text
 Start Shift
@@ -75,6 +83,46 @@ Save
 History / Analytics
 ```
 
-## Status
+## Uruchomienie lokalne
 
-Projekt znajduje się na początku implementacji. Docelową formą produktu jest aplikacja Android. React może być uruchamiany w przeglądarce podczas developmentu, ale osobna publiczna wersja webowa nie jest celem projektu.
+Wymagania dla całego projektu: Node.js 22.x od wersji 22.22.0 albo Node.js 24 lub nowszy oraz npm. Polecenia poniżej są przeznaczone dla PowerShell. Uruchom frontend i backend w dwóch osobnych terminalach, zaczynając w katalogu głównym repozytorium.
+
+Konfiguracja jest opisana w [backend/.env.example](backend/.env.example) i [frontend/.env.example](frontend/.env.example). Przy pierwszym uruchomieniu można skopiować odpowiedni plik do `.env` w jego katalogu. Lokalnych plików `.env` nie należy dodawać do repozytorium.
+
+### Backend
+
+```powershell
+cd backend
+npm.cmd ci
+npm.cmd run dev
+```
+
+Domyślny adres: `http://localhost:3000`.
+
+### Frontend
+
+```powershell
+cd frontend
+npm.cmd ci
+npm.cmd run dev
+```
+
+Domyślny adres: `http://localhost:5173`.
+
+## Kontrole
+
+Frontend:
+
+```powershell
+cd frontend
+npm.cmd run lint
+npm.cmd run build
+```
+
+Backend:
+
+```powershell
+cd backend
+npm.cmd run lint
+npm.cmd test
+```
