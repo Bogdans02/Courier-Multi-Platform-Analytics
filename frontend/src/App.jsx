@@ -1,8 +1,8 @@
 import { NavLink, Route, Routes } from 'react-router';
-import Home from '../screens/Home.jsx';
-import Login from '../screens/Login.jsx';
-import Register from '../screens/Register.jsx';
-import Dashboard from '../screens/Dashboard.jsx';
+import Home from './screens/Home.jsx';
+import Login from './screens/Login.jsx';
+import Register from './screens/Register.jsx';
+import Dashboard from './screens/Dashboard.jsx';
 
 const links = [
   { to: '/', label: 'Start' },

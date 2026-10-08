@@ -85,15 +85,18 @@ History / Analytics
 
 ## Uruchomienie lokalne
 
-Wymagania dla całego projektu: Node.js 22.x od wersji 22.22.0 albo Node.js 24 lub nowszy oraz npm. Polecenia poniżej są przeznaczone dla PowerShell. Uruchom frontend i backend w dwóch osobnych terminalach, zaczynając w katalogu głównym repozytorium.
+Wymagania dla całego projektu: Node.js 22.x od wersji 22.22.0 albo Node.js 24 lub nowszy, npm i PostgreSQL 16 lub nowszy. Polecenia poniżej są przeznaczone dla PowerShell. Uruchom frontend i backend w dwóch osobnych terminalach, zaczynając w katalogu głównym repozytorium.
 
 Konfiguracja jest opisana w [backend/.env.example](backend/.env.example) i [frontend/.env.example](frontend/.env.example). Przy pierwszym uruchomieniu można skopiować odpowiedni plik do `.env` w jego katalogu. Lokalnych plików `.env` nie należy dodawać do repozytorium.
 
 ### Backend
 
+W PostgreSQL utwórz lokalną rolę z możliwością logowania oraz bazę `courier_analytics`, której właścicielem jest ta rola. Ustaw właściwy `DATABASE_URL` w `backend/.env`, korzystając z przykładu konfiguracji. Backend wymaga działającego połączenia z bazą.
+
 ```powershell
 cd backend
 npm.cmd ci
+npm.cmd run db:migrate
 npm.cmd run dev
 ```
 
@@ -125,4 +128,14 @@ Backend:
 cd backend
 npm.cmd run lint
 npm.cmd test
+npm.cmd run db:check
 ```
+
+`db:check` sprawdza zapis i odczyt przykładowych danych, a następnie wycofuje je w transakcji. Testy integracyjne wymagają osobnej bazy `courier_analytics_test`, należącej do lokalnej roli testowej, i ustawienia `TEST_DATABASE_URL` w `backend/.env`:
+
+```powershell
+cd backend
+npm.cmd run test:db
+```
+
+Testy tworzą i usuwają własny schemat w bazie testowej. Kolejne zmiany schematu dodawaj jako nowe numerowane pliki SQL w `backend/migrations/`; zastosowanych migracji nie edytuj.

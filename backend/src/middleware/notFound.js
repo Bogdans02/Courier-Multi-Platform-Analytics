@@ -1,5 +1,3 @@
-export function notFound(_req, _res, next) {
-  const error = new Error('Route not found.');
-  error.status = 404;
-  next(error);
+export function notFound(_req, res) {
+  res.status(404).json({ message: 'Route not found.' });
 }
