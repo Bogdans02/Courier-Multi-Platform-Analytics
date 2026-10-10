@@ -1,14 +1,15 @@
-import app from './app.js';
-import { port } from './config/env.js';
+import { createApp } from './app.js';
+import { port, getJwtSecret } from './config/env.js';
 import { createDatabasePool } from './config/database.js';
 
 let pool;
 
 try {
+  const jwtSecret = getJwtSecret();
   pool = createDatabasePool();
   await pool.query('SELECT 1');
 
-  const server = app.listen(port, () => {
+  const server = createApp(pool, jwtSecret).listen(port, () => {
     console.log(`Backend running at http://localhost:${port}`);
   });
 
@@ -19,7 +20,7 @@ try {
   });
 
 } catch {
-  console.error('Backend startup failed. Check DATABASE_URL and PostgreSQL availability.');
+  console.error('Backend startup failed. Check JWT_SECRET, DATABASE_URL and PostgreSQL availability.');
   if (pool) await pool.end();
   process.exitCode = 1;
 }

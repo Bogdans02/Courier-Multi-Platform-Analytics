@@ -93,6 +93,8 @@ Konfiguracja jest opisana w [backend/.env.example](backend/.env.example) i [fron
 
 W PostgreSQL utwórz lokalną rolę z możliwością logowania oraz bazę `courier_analytics`, której właścicielem jest ta rola. Ustaw właściwy `DATABASE_URL` w `backend/.env`, korzystając z przykładu konfiguracji. Backend wymaga działającego połączenia z bazą.
 
+Ustaw również `JWT_SECRET` w `backend/.env`: losowy sekret o długości co najmniej 32 znaków. Backend sprawdza tę konfigurację przed uruchomieniem. Rzeczywistego sekretu nie należy dodawać do repozytorium.
+
 ```powershell
 cd backend
 npm.cmd ci
@@ -119,6 +121,7 @@ Frontend:
 ```powershell
 cd frontend
 npm.cmd run lint
+npm.cmd test
 npm.cmd run build
 ```
 

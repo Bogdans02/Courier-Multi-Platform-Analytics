@@ -11,6 +11,7 @@ export function errorHandler(error, _req, res, next) {
 
   if (status === 404) message = 'Route not found.';
   else if (error.type === 'entity.parse.failed') message = 'Invalid JSON body.';
+  else if (error.expose && status < 500) message = error.message;
   else if (status < 500) message = 'Invalid request.';
 
   if (status >= 500) console.error(error);
