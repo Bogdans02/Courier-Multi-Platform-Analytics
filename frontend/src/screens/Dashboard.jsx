@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getHealth } from '../services/api/health.js';
 import { getCurrentUser } from '../services/api/auth.js';
+import { Link } from 'react-router';
 
 export default function Dashboard({ session, onSessionExpired }) {
   const [connection, setConnection] = useState({ status: 'loading', message: '' });
@@ -37,6 +38,8 @@ export default function Dashboard({ session, onSessionExpired }) {
   return (
     <>
       <h1 className="text-2xl font-semibold">Dashboard</h1>
+      <p><Link to="/shifts/active" className="underline">Rozpocznij lub zakończ zmianę</Link></p>
+      <p><Link to="/history" className="underline">Historia zmian</Link></p>
       {account.status === 'loading' && <p role="status">Sprawdzanie sesji...</p>}
       {account.user && <p>Zalogowano jako: <strong>{account.user.email}</strong></p>}
       {account.status === 'error' && <p role="alert" className="text-red-700">{account.message}</p>}

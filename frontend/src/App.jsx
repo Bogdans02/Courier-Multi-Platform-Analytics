@@ -1,20 +1,26 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { NavLink, Navigate, Route, Routes } from 'react-router';
 import Home from './screens/Home.jsx';
 import Login from './screens/Login.jsx';
 import Register from './screens/Register.jsx';
 import Dashboard from './screens/Dashboard.jsx';
+import ActiveShift from './screens/ActiveShift.jsx';
+import ShiftHistory from './screens/ShiftHistory.jsx';
+import ShiftDetails from './screens/ShiftDetails.jsx';
 
 const links = [
   { to: '/', label: 'Start' },
   { to: '/login', label: 'Logowanie' },
   { to: '/register', label: 'Rejestracja' },
   { to: '/dashboard', label: 'Dashboard' },
+  { to: '/shifts/active', label: 'Zmiana robocza' },
+  { to: '/history', label: 'Historia' },
 ];
 
 export default function App() {
   // Development session only. Android token storage remains OPEN-003.
   const [session, setSession] = useState(null);
+  const expireSession = useCallback(() => setSession(null), []);
 
   return (
     <div className="mx-auto max-w-2xl p-4">
@@ -46,7 +52,16 @@ export default function App() {
           <Route path="/login" element={session ? <Navigate to="/dashboard" replace /> : <Login onLogin={setSession} />} />
           <Route path="/register" element={session ? <Navigate to="/dashboard" replace /> : <Register />} />
           <Route path="/dashboard" element={session
-            ? <Dashboard session={session} onSessionExpired={() => setSession(null)} />
+            ? <Dashboard session={session} onSessionExpired={expireSession} />
+            : <Navigate to="/login" replace />} />
+          <Route path="/shifts/active" element={session
+            ? <ActiveShift session={session} onSessionExpired={expireSession} />
+            : <Navigate to="/login" replace />} />
+          <Route path="/history" element={session
+            ? <ShiftHistory session={session} onSessionExpired={expireSession} />
+            : <Navigate to="/login" replace />} />
+          <Route path="/shifts/:id" element={session
+            ? <ShiftDetails session={session} onSessionExpired={expireSession} />
             : <Navigate to="/login" replace />} />
           <Route path="*" element={<h1 className="text-2xl font-semibold">Nie znaleziono strony</h1>} />
         </Routes>
