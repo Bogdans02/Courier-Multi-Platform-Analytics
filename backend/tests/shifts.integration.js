@@ -6,10 +6,12 @@ import jwt from 'jsonwebtoken';
 import { createApp } from '../src/app.js';
 import { createDatabasePool } from '../src/config/database.js';
 import { runMigrations } from '../src/db/migrate.js';
+import { createShiftRepository } from '../src/repositories/shiftRepository.js';
 
 const schema = `shifts_test_${randomUUID().replaceAll('-', '')}`;
 const secret = randomBytes(32).toString('hex');
-const times = { startedAt: '2026-10-10T08:00:00.000Z', endedAt: '2026-10-10T10:30:00.000Z' };
+const entry = { platform: 'glovo', earningsGross: '160.50', ordersCount: 10 };
+const times = { startedAt: '2026-10-10T08:00:00.000Z', endedAt: '2026-10-10T10:30:00.000Z', platformEntries: [entry] };
 let adminPool;
 let pool;
 let schemaCreated = false;
@@ -179,4 +181,69 @@ test('every shift endpoint requires authorization before reading or changing dat
     }
   }
   assert.deepEqual((await request()).body.shifts, []);
+});
+
+test('one or multiple platform entries persist and totals come from saved values, not client totals', async () => {
+  const shift = await completedShift();
+  let result = await request(`/${shift.id}`, { method: 'PUT', body: { ...times, totalEarnings: 999, totalOrders: 999 } });
+  assert.equal(result.status, 200);
+  assert.deepEqual(result.body.shift.platformEntries, [entry]);
+  assert.equal(result.body.shift.totalEarnings, '160.50');
+  assert.equal(result.body.shift.totalOrders, 10);
+  const entries = [entry, { platform: 'bolt_food', earningsGross: '75.20', ordersCount: 4 }];
+  result = await request(`/${shift.id}`, { method: 'PUT', body: { ...times, platformEntries: entries } });
+  assert.equal(result.status, 200);
+  assert.deepEqual(result.body.shift.platformEntries, entries);
+  assert.equal(result.body.shift.totalEarnings, '235.70');
+  assert.equal(result.body.shift.totalOrders, 14);
+  assert.deepEqual((await request(`/${shift.id}`)).body.shift, result.body.shift);
+  assert.deepEqual((await request()).body.shifts, [result.body.shift]);
+  result = await request(`/${shift.id}`, { method: 'PUT', body: { ...times, platformEntries: [
+    { ...entry, earningsGross: '0.10', ordersCount: 0 },
+    { platform: 'bolt_food', earningsGross: '0.20', ordersCount: 0 },
+  ] } });
+  assert.equal(result.body.shift.totalEarnings, '0.30');
+  assert.equal(result.body.shift.totalOrders, 0);
+});
+
+test('editing replaces or removes entries; deleting the shift cascades to its platform entries', async () => {
+  const shift = await completedShift();
+  await request(`/${shift.id}`, { method: 'PUT', body: { ...times, platformEntries: [entry,
+    { platform: 'other', earningsGross: '20.00', ordersCount: 2 }] } });
+  const replacement = { platform: 'uber_eats', earningsGross: '0.00', ordersCount: 0 };
+  const result = await request(`/${shift.id}`, { method: 'PUT', body: { ...times, platformEntries: [replacement] } });
+  assert.equal(result.status, 200);
+  assert.deepEqual(result.body.shift.platformEntries, [replacement]);
+  assert.equal(result.body.shift.totalEarnings, '0.00');
+  assert.equal(result.body.shift.totalOrders, 0);
+  const { rows } = await pool.query('SELECT platform FROM shift_platform_entries WHERE shift_id = $1', [shift.id]);
+  assert.deepEqual(rows, [{ platform: 'uber_eats' }]);
+  assert.equal((await request(`/${shift.id}`, { method: 'DELETE' })).status, 204);
+  assert.deepEqual((await pool.query('SELECT id FROM shift_platform_entries WHERE shift_id = $1', [shift.id])).rows, []);
+});
+
+test('invalid platform data and another owner cannot change saved entries or shift times', async () => {
+  const shift = await completedShift();
+  const saved = (await request(`/${shift.id}`, { method: 'PUT', body: times })).body.shift;
+  for (const platformEntries of [undefined, [], [entry, entry], [{ ...entry, platform: 'unknown' }],
+    [{ ...entry, earningsGross: -1 }], [{ ...entry, ordersCount: 1.5 }], [{ ...entry, ordersCount: -1 }]]) {
+    assert.equal((await request(`/${shift.id}`, { method: 'PUT', body: { ...times, platformEntries } })).status, 400);
+  }
+  for (const method of ['GET', 'PUT', 'DELETE']) {
+    assert.equal((await request(`/${shift.id}?user_id=${firstUser}`, { method, auth: secondToken,
+      body: method === 'PUT' ? { ...times, platformEntries: [{ ...entry, earningsGross: '999' }] } : undefined })).status, 404);
+  }
+  assert.deepEqual((await request('', { auth: secondToken })).body.shifts, []);
+  assert.deepEqual((await request(`/${shift.id}`)).body.shift, saved);
+});
+
+test('a failed entry insert rolls back both the shift update and replacement of existing entries', async () => {
+  const shift = await completedShift();
+  const saved = (await request(`/${shift.id}`, { method: 'PUT', body: times })).body.shift;
+  // Bypass API validation to verify the transaction when PostgreSQL rejects an insert.
+  await assert.rejects(createShiftRepository(pool).update(firstUser, shift.id, {
+    startedAt: new Date(times.startedAt), endedAt: new Date('2026-10-10T12:00:00.000Z'),
+    distanceKm: '25', platformEntries: [entry, entry],
+  }), { code: '23505' });
+  assert.deepEqual((await request(`/${shift.id}`)).body.shift, saved);
 });

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router';
 import { getShifts } from '../services/api/shifts.js';
+import ShiftPlatformSummary from '../components/ShiftPlatformSummary.jsx';
 import { formatDateTime, formatDistance, formatDuration } from '../utils/shiftFormat.js';
 
 export default function ShiftHistory({ session, onSessionExpired }) {
@@ -39,6 +40,7 @@ export default function ShiftHistory({ session, onSessionExpired }) {
               <p>Zakończenie: {formatDateTime(shift.endedAt)}</p>
               <p>Czas pracy: {formatDuration(shift.durationSeconds)}</p>
               <p>Dystans: {formatDistance(shift.distanceKm)}</p>
+              <ShiftPlatformSummary shift={shift} />
               <Link to={`/shifts/${shift.id}`} className="inline-block py-2 underline">Szczegóły zmiany</Link>
             </li>
           ))}

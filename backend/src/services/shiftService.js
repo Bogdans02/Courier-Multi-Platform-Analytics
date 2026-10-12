@@ -3,6 +3,9 @@ import { validateShiftId, validateShiftUpdate } from '../validators/shiftValidat
 
 function presentShift(row) {
   if (!row) return null;
+  const platformEntries = row.platform_entries ?? [];
+  // Sum whole grosze to avoid floating-point errors such as 0.1 + 0.2.
+  const earningsCents = platformEntries.reduce((sum, entry) => sum + Math.round(Number(entry.earningsGross) * 100), 0);
   return {
     id: row.id,
     status: row.status,
@@ -11,6 +14,9 @@ function presentShift(row) {
     distanceKm: row.distance_km,
     distanceSource: row.distance_source,
     durationSeconds: row.ended_at ? (row.ended_at - row.started_at) / 1000 : null,
+    platformEntries,
+    totalEarnings: (earningsCents / 100).toFixed(2),
+    totalOrders: platformEntries.reduce((sum, entry) => sum + entry.ordersCount, 0),
   };
 }
 

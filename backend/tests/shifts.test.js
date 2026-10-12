@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { validateShiftId, validateShiftUpdate } from '../src/validators/shiftValidator.js';
+import { validatePlatformEntries, validateShiftId, validateShiftUpdate } from '../src/validators/shiftValidator.js';
 
-const valid = { startedAt: '2026-10-10T08:00:00.000Z', endedAt: '2026-10-10T10:30:00.000Z' };
+const entry = { platform: 'glovo', earningsGross: '160.50', ordersCount: 10 };
+const valid = { startedAt: '2026-10-10T08:00:00.000Z', endedAt: '2026-10-10T10:30:00.000Z', platformEntries: [entry] };
 
 test('shift update validates time order and preserves optional manual distance', () => {
   const values = validateShiftUpdate(valid);
@@ -24,4 +25,18 @@ test('shift IDs must fit a positive PostgreSQL integer', () => {
   for (const value of ['0', '-1', '1.5', 'abc', '2147483648']) {
     assert.throws(() => validateShiftId(value), { status: 400 });
   }
+});
+
+test('platform entries accept one or several platforms and normalize money and integer orders', () => {
+  assert.deepEqual(validatePlatformEntries([entry]), [entry]);
+  assert.deepEqual(validatePlatformEntries([entry, { platform: 'bolt_food', earningsGross: 0, ordersCount: '0' }]),
+    [entry, { platform: 'bolt_food', earningsGross: '0', ordersCount: 0 }]);
+  assert.equal(validateShiftUpdate(valid).platformEntries.length, 1);
+});
+
+test('platform validation rejects missing entries, duplicates, unknown platforms and invalid values', () => {
+  const invalid = [undefined, null, {}, [], [entry, entry], [{ ...entry, platform: 'unknown' }], [null],
+    ...[-1, '', true, '1.234', '10000000000'].map((earningsGross) => [{ ...entry, earningsGross }]),
+    ...[-1, '', true, 1.5, '2147483648'].map((ordersCount) => [{ ...entry, ordersCount }])];
+  for (const entries of invalid) assert.throws(() => validatePlatformEntries(entries), { status: 400 });
 });

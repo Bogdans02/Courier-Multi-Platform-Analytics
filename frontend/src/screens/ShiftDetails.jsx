@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router';
 import ShiftForm from '../components/ShiftForm.jsx';
+import ShiftPlatformSummary from '../components/ShiftPlatformSummary.jsx';
 import { deleteShift, getShift, updateShift } from '../services/api/shifts.js';
 import { formatDateTime, formatDistance, formatDuration } from '../utils/shiftFormat.js';
 
@@ -67,6 +68,7 @@ export default function ShiftDetails({ session, onSessionExpired }) {
             <div><dt className="font-medium">Czas pracy</dt><dd>{shift.durationSeconds === null ? 'Zmiana trwa' : formatDuration(shift.durationSeconds)}</dd></div>
             <div><dt className="font-medium">Dystans</dt><dd>{formatDistance(shift.distanceKm)}</dd></div>
           </dl>
+          {shift.status === 'completed' && <ShiftPlatformSummary shift={shift} />}
           {editing && shift.status === 'completed' ? (
             <ShiftForm key={shift.id} shift={shift} onSubmit={save} onCancel={() => setEditing(false)} />
           ) : (

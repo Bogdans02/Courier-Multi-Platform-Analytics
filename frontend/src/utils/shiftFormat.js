@@ -13,6 +13,10 @@ export function formatDistance(value) {
   return value === null ? 'Nie podano' : `${Number(value).toLocaleString('pl-PL')} km`;
 }
 
+export function formatMoney(value) {
+  return Number(value).toLocaleString('pl-PL', { style: 'currency', currency: 'PLN' });
+}
+
 export function toLocalDateTime(value) {
   const date = new Date(value);
   return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, -1);
