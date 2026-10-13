@@ -175,3 +175,118 @@ test('summary recalculates after editing entries, time, distance and period, and
   assert.equal((await request(`/shifts/${id}`, { method: 'DELETE' })).status, 204);
   assert.equal((await request()).body.summary.shiftCount, 0);
 });
+
+test('details protects the endpoint, isolates accounts and returns empty groups without invented ratios', async () => {
+  const result = await request('/analytics/details');
+  assert.equal(result.status, 200);
+  assert.equal(result.cache, 'no-store');
+  const { details } = result.body;
+  assert.equal(details.shiftCount, 0);
+  assert.equal(details.timeZone, 'Europe/Warsaw');
+  for (const field of ['trend', 'months', 'platforms']) assert.deepEqual(details[field], []);
+  assert.equal(details.weekdays.length, 7);
+  assert.equal(details.startTimes.length, 4);
+  assert.equal(details.weekdays[0].earningsPerOrder, null);
+  for (const auth of [null, 'invalid']) assert.equal((await request('/analytics/details', { auth })).status, 401);
+  await seed({ userId: other });
+  assert.equal((await request(`/analytics/details?user_id=${other}`)).body.details.shiftCount, 0);
+  assert.equal((await request(`/analytics/details?user_id=${owner}`, { auth: otherToken })).body.details.shiftCount, 1);
+});
+
+test('details aggregates exact money once per shift and filters only attributable platform values', async () => {
+  const startedAt = new Date('2026-10-05T10:00:00Z');
+  await seed({ startedAt, hours: 6, entries: [['glovo', '160.10', 8], ['bolt_food', '80.20', 4]] });
+  await seed({ startedAt, hours: 2, entries: [['glovo', '160.00', 8]] });
+  await seed({ startedAt, entries: [] });
+  await seed({ startedAt, status: 'active', entries: [['glovo', '999.00', 99]] });
+  await seed({ userId: other, startedAt });
+  const all = (await request('/analytics/details')).body.details;
+  assert.equal(all.shiftCount, 2);
+  assert.equal(all.incompleteShiftCount, 1);
+  assert.equal(all.trend.length, 1);
+  assert.equal(all.trend[0].totalEarnings, '400.30');
+  assert.equal(all.trend[0].totalOrders, 20);
+  assert.equal(all.trend[0].earningsPerHour, '50.04');
+  assert.equal(all.weekdays[0].shiftCount, 2);
+  assert.equal(all.startTimes[2].totalEarnings, '400.30');
+  const glovo = all.platforms.find((row) => row.platform === 'glovo');
+  assert.deepEqual(glovo, { platform: 'glovo', shiftCount: 2, totalEarnings: '320.10', totalOrders: 16,
+    earningsPerOrder: '20.01', earningsShare: '79.97', ordersShare: '80.00' });
+  const filtered = (await request('/analytics/details?platform=bolt_food')).body.details;
+  assert.equal(filtered.shiftCount, 1);
+  assert.equal(filtered.trend[0].totalEarnings, '80.20');
+  assert.equal(filtered.trend[0].totalOrders, 4);
+  for (const field of ['trend', 'months', 'weekdays', 'startTimes']) {
+    for (const row of filtered[field]) {
+      assert.equal(row.earningsPerHour, null);
+      assert.equal(Object.hasOwn(row, 'earningsPerKm'), false);
+      assert.equal(Object.hasOwn(row, 'totalHours'), false);
+    }
+  }
+  assert.deepEqual(filtered.platforms, all.platforms);
+  const absent = (await request('/analytics/details?platform=uber_eats')).body.details;
+  assert.equal(absent.shiftCount, 0);
+  assert.deepEqual(absent.trend, []);
+  await pool.query('UPDATE shift_platform_entries SET earnings_gross = 0, orders_count = 0');
+  const zero = (await request('/analytics/details')).body.details;
+  assert.equal(zero.trend[0].totalEarnings, '0.00');
+  assert.equal(zero.trend[0].earningsPerHour, '0.00');
+  assert.equal(zero.trend[0].earningsPerOrder, null);
+  assert.ok(zero.platforms.every((row) => row.earningsShare === null && row.ordersShare === null));
+});
+
+test('Warsaw grouping handles local day and year boundaries, exact six-hour buckets and DST', async () => {
+  for (const time of [
+    '2025-12-31T23:30:00Z', // Jan 1, 00:30, CET
+    '2026-09-30T22:30:00Z', // Oct 1, 00:30, CEST
+    '2026-10-04T21:59:00Z', // Sunday 23:59
+    '2026-10-04T22:00:00Z', // Monday 00:00
+    '2026-10-05T03:59:00Z', // 05:59
+    '2026-10-05T04:00:00Z', // 06:00
+    '2026-10-05T10:00:00Z', // 12:00
+    '2026-10-05T16:00:00Z', // 18:00
+    '2026-10-25T00:30:00Z', // 02:30 before DST ends
+    '2026-10-25T01:30:00Z', // 02:30 after DST ends
+  ]) await seed({ startedAt: new Date(time), hours: 1 });
+  const service = createAnalyticsService(createAnalyticsRepository(pool), () => new Date('2026-11-02T12:00:00Z'));
+  const result = await service.details(owner, 'all', 'all');
+  assert.deepEqual(result.trend.map((row) => row.key), ['2026-01-01', '2026-10-01', '2026-10-04', '2026-10-05', '2026-10-25']);
+  assert.deepEqual(result.months.map((row) => row.key), ['2026-01', '2026-10']);
+  assert.deepEqual(result.startTimes.map((row) => row.shiftCount), [6, 1, 1, 2]);
+  assert.equal(result.weekdays[0].shiftCount, 5);
+  assert.equal(result.weekdays[6].shiftCount, 3);
+  assert.equal(result.trend.at(-1).earningsPerHour, '100.00');
+  assert.equal(result.trend.at(-1).shiftCount, 2);
+});
+
+test('details uses the four rolling periods and inclusive boundaries, rejects repeated filters and recalculates after changes', async () => {
+  for (const days of [1, 10, 40, 100]) await seed({ startedAt: new Date(anchor - days * day) });
+  await seed({ startedAt: new Date(Date.now() + day) });
+  for (const [period, count] of [['week', 1], ['month', 2], ['three_months', 3], ['all', 4]]) {
+    assert.equal((await request(`/analytics/details?period=${period}`)).body.details.shiftCount, count);
+  }
+  for (const query of ['period=', 'period=year', 'period=week&period=month', 'platform=',
+    'platform=unknown', 'platform=glovo&platform=other']) {
+    assert.equal((await request(`/analytics/details?${query}`)).status, 400);
+  }
+  await pool.query('DELETE FROM shifts');
+  const now = new Date('2026-10-12T12:00:00Z');
+  for (const offset of [-7 * day - 1, -7 * day, -1, 0, 1]) {
+    await seed({ startedAt: new Date(now.getTime() + offset) });
+  }
+  const service = createAnalyticsService(createAnalyticsRepository(pool), () => now);
+  assert.equal((await service.details(owner, 'week', 'all')).shiftCount, 3);
+  await pool.query('DELETE FROM shifts');
+  const id = await seed({ startedAt: new Date('2026-09-10T10:00:00Z') });
+  const body = { startedAt: '2026-10-05T04:00:00.000Z', endedAt: '2026-10-05T06:00:00.000Z', distanceKm: null,
+    platformEntries: [{ platform: 'other', earningsGross: '250.00', ordersCount: 10 }] };
+  assert.equal((await request(`/shifts/${id}`, { method: 'PUT', body })).status, 200);
+  const next = (await request('/analytics/details')).body.details;
+  assert.equal(next.months.length, 1);
+  assert.equal(next.months[0].key, '2026-10');
+  assert.equal(next.months[0].totalEarnings, '250.00');
+  assert.equal(next.startTimes[1].shiftCount, 1);
+  assert.equal(next.platforms[0].platform, 'other');
+  assert.equal((await request(`/shifts/${id}`, { method: 'DELETE' })).status, 204);
+  assert.equal((await request('/analytics/details')).body.details.shiftCount, 0);
+});

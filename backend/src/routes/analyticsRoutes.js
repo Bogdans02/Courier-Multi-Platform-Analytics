@@ -14,5 +14,6 @@ export function createAnalyticsRoutes(pool, jwtSecret) {
     next();
   });
   router.get('/summary', controller.summary);
+  router.get('/details', controller.details);
   return router;
 }

@@ -6,3 +6,10 @@ export function validateSummaryPeriod(value = 'all') {
   }
   return value;
 }
+
+export function validateAnalyticsPlatform(value = 'all') {
+  if (!['all', 'glovo', 'bolt_food', 'uber_eats', 'other'].includes(value)) {
+    throw httpError(400, 'Wybierz poprawną platformę.');
+  }
+  return value;
+}

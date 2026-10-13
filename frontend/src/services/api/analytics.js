@@ -3,9 +3,18 @@ const API_BASE_URL = (
 ).replace(/\/$/, '');
 
 export async function getSummary(token, period, signal) {
+  return requestAnalytics(token, `summary?period=${encodeURIComponent(period)}`, signal);
+}
+
+export async function getDetails(token, period, platform, signal) {
+  return requestAnalytics(token,
+    `details?period=${encodeURIComponent(period)}&platform=${encodeURIComponent(platform)}`, signal);
+}
+
+async function requestAnalytics(token, path, signal) {
   let response;
   try {
-    response = await fetch(`${API_BASE_URL}/analytics/summary?period=${encodeURIComponent(period)}`, {
+    response = await fetch(`${API_BASE_URL}/analytics/${path}`, {
       headers: { Authorization: `Bearer ${token}` }, signal,
     });
   } catch (error) {

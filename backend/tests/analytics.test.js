@@ -24,3 +24,24 @@ test('summary validates the period and calculates rolling UTC bounds before quer
   }
   assert.equal(calls.length, 5);
 });
+
+test('details validates both filters and supplies ordered empty weekday and start-time groups', async () => {
+  const now = new Date('2026-10-13T12:00:00Z');
+  const calls = [];
+  const service = createAnalyticsService({ async details(...args) {
+    calls.push(args);
+    return { trend: [], months: [], weekdays: [], startTimes: [], platforms: [], shiftCount: 0 };
+  } }, () => now);
+  const result = await service.details(42, 'week', 'glovo');
+  assert.deepEqual(calls[0], [42, new Date('2026-10-06T12:00:00Z'), now, 'glovo']);
+  assert.equal(result.timeZone, 'Europe/Warsaw');
+  assert.deepEqual(result.weekdays.map((row) => row.key), ['1', '2', '3', '4', '5', '6', '7']);
+  assert.deepEqual(result.startTimes.map((row) => row.key), ['0', '1', '2', '3']);
+  assert.equal(result.weekdays[0].earningsPerHour, null);
+  assert.equal((await service.details(42)).platform, 'all');
+  for (const platform of ['', 'unknown', ['glovo', 'other'], {}, "glovo' OR TRUE"]) {
+    await assert.rejects(service.details(42, 'all', platform), { status: 400 });
+  }
+  await assert.rejects(service.details(42, 'year', 'all'), { status: 400 });
+  assert.equal(calls.length, 2);
+});

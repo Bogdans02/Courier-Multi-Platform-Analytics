@@ -4,6 +4,7 @@ import { getCurrentUser } from '../services/api/auth.js';
 import { Link } from 'react-router';
 import { getSummary } from '../services/api/analytics.js';
 import DashboardSummary from '../components/DashboardSummary.jsx';
+import AdvancedAnalytics from '../components/AdvancedAnalytics.jsx';
 
 export default function Dashboard({ session, onSessionExpired }) {
   const [connection, setConnection] = useState({ status: 'loading', message: '' });
@@ -82,6 +83,7 @@ export default function Dashboard({ session, onSessionExpired }) {
         }}>Spróbuj ponownie</button>
       </div>}
       {statistics.status === 'success' && <DashboardSummary summary={statistics.summary} />}
+      <AdvancedAnalytics token={session.token} period={period} onSessionExpired={onSessionExpired} />
       <p>Połączenie z backendem:</p>
       {connection.status === 'loading' && <p role="status">Sprawdzanie połączenia...</p>}
       {connection.status === 'success' && <p role="status">{connection.message}</p>}
