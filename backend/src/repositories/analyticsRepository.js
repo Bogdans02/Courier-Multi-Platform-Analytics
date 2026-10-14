@@ -1,6 +1,6 @@
 export function createAnalyticsRepository(pool) {
   return {
-    async details(userId, from, to, platform) {
+    async details(userId, from, to, platform, deductionRate = '0') {
       const { rows: [row] } = await pool.query(`
         WITH period_shifts AS (
           SELECT s.id, s.started_at AT TIME ZONE 'Europe/Warsaw' AS local_start,
@@ -9,7 +9,9 @@ export function createAnalyticsRepository(pool) {
           WHERE s.user_id = $1 AND s.status = 'completed'
             AND ($2::timestamptz IS NULL OR s.started_at >= $2) AND s.started_at <= $3
         ), period_entries AS (
-          SELECT e.* FROM shift_platform_entries e JOIN period_shifts s ON s.id = e.shift_id
+          SELECT e.shift_id, e.platform, e.orders_count,
+            e.earnings_gross * (1 - $5::numeric) AS earnings_gross
+          FROM shift_platform_entries e JOIN period_shifts s ON s.id = e.shift_id
         ), selected_shifts AS (
           -- Sum entries first, so a multi-platform shift contributes its hours only once.
           SELECT s.id, s.local_start, s.hours, SUM(e.earnings_gross) AS earnings,
@@ -58,14 +60,14 @@ export function createAnalyticsRepository(pool) {
           COALESCE((SELECT JSONB_AGG(value ORDER BY key) FROM group_results WHERE kind = 'weekdays'), '[]') AS weekdays,
           COALESCE((SELECT JSONB_AGG(value ORDER BY key) FROM group_results WHERE kind = 'startTimes'), '[]') AS "startTimes",
           COALESCE((SELECT JSONB_AGG(value ORDER BY platform) FROM platform_results), '[]') AS platforms
-      `, [userId, from, to, platform]);
+      `, [userId, from, to, platform, deductionRate]);
       return row;
     },
-    async summary(userId, from, to) {
+    async summary(userId, from, to, deductionRate = '0') {
       const { rows: [row] } = await pool.query(`
         WITH shift_totals AS (
           SELECT s.distance_km, EXTRACT(EPOCH FROM (s.ended_at - s.started_at)) / 3600 AS hours,
-            entries.earnings, entries.orders
+            entries.earnings * (1 - $4::numeric) AS earnings, entries.orders
           FROM shifts s
           LEFT JOIN (
             SELECT e.shift_id, SUM(e.earnings_gross) AS earnings, SUM(e.orders_count) AS orders
@@ -95,7 +97,7 @@ export function createAnalyticsRepository(pool) {
           ROUND(orders / NULLIF(hours, 0), 2)::text AS "ordersPerHour",
           ROUND(earnings / NULLIF(orders, 0), 2)::text AS "earningsPerOrder"
         FROM totals
-      `, [userId, from, to]);
+      `, [userId, from, to, deductionRate]);
       return row;
     },
   };

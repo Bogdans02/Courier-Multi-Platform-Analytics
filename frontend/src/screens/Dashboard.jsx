@@ -5,17 +5,19 @@ import { Link } from 'react-router';
 import { getSummary } from '../services/api/analytics.js';
 import DashboardSummary from '../components/DashboardSummary.jsx';
 import AdvancedAnalytics from '../components/AdvancedAnalytics.jsx';
+import { formatRate } from '../utils/netSettings.js';
 
 export default function Dashboard({ session, onSessionExpired }) {
   const [connection, setConnection] = useState({ status: 'loading', message: '' });
   const [account, setAccount] = useState({ status: 'loading', user: null, message: '' });
   const [period, setPeriod] = useState('all');
+  const [mode, setMode] = useState('gross');
   const [statistics, setStatistics] = useState({ status: 'loading', summary: null, message: '' });
   const [reload, setReload] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
-    getSummary(session.token, period, controller.signal)
+    getSummary(session.token, period, controller.signal, mode)
       .then(({ summary }) => {
         if (!controller.signal.aborted) setStatistics({ status: 'success', summary, message: '' });
       })
@@ -25,7 +27,7 @@ export default function Dashboard({ session, onSessionExpired }) {
         else setStatistics({ status: 'error', summary: null, message: error.message });
       });
     return () => controller.abort();
-  }, [session.token, period, reload, onSessionExpired]);
+  }, [session.token, period, mode, reload, onSessionExpired]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -60,9 +62,24 @@ export default function Dashboard({ session, onSessionExpired }) {
       <h1 className="text-2xl font-semibold">Dashboard</h1>
       <p><Link to="/shifts/active" className="underline">Rozpocznij lub zakończ zmianę</Link></p>
       <p><Link to="/history" className="underline">Historia zmian</Link></p>
+      <p><Link to="/settings" className="underline">Ustawienia szacowanego netto</Link></p>
       {account.status === 'loading' && <p role="status">Sprawdzanie sesji...</p>}
       {account.user && <p>Zalogowano jako: <strong>{account.user.email}</strong></p>}
       {account.status === 'error' && <p role="alert" className="text-red-700">{account.message}</p>}
+      <label className="block" htmlFor="earnings-mode">Wartości finansowe</label>
+      <select id="earnings-mode" value={mode} className="w-full rounded border border-slate-400 bg-white p-3"
+        onChange={(event) => {
+          setStatistics({ status: 'loading', summary: null, message: '' });
+          setMode(event.target.value);
+        }}>
+        <option value="gross">Brutto</option>
+        <option value="estimated_net">Szacowane netto</option>
+      </select>
+      {mode === 'estimated_net' && <p className="text-sm text-slate-600">
+        Szacowane netto korzysta z aktualnie zapisanego profilu dla całego wybranego okresu.
+        To uproszczony szacunek, a nie pełne rozliczenie podatkowe.
+        {statistics.summary && ` Szacowana stawka potrąceń: ${formatRate(statistics.summary.deductionRate)}.`}
+      </p>}
       <label className="block" htmlFor="summary-period">Okres statystyk</label>
       <select id="summary-period" value={period} className="w-full rounded border border-slate-400 bg-white p-3"
         onChange={(event) => {
@@ -83,7 +100,7 @@ export default function Dashboard({ session, onSessionExpired }) {
         }}>Spróbuj ponownie</button>
       </div>}
       {statistics.status === 'success' && <DashboardSummary summary={statistics.summary} />}
-      <AdvancedAnalytics token={session.token} period={period} onSessionExpired={onSessionExpired} />
+      <AdvancedAnalytics token={session.token} period={period} mode={mode} onSessionExpired={onSessionExpired} />
       <p>Połączenie z backendem:</p>
       {connection.status === 'loading' && <p role="status">Sprawdzanie połączenia...</p>}
       {connection.status === 'success' && <p role="status">{connection.message}</p>}

@@ -42,7 +42,10 @@ before(async () => {
   baseUrl = `http://127.0.0.1:${server.address().port}/api`;
 });
 
-beforeEach(async () => { await pool.query('DELETE FROM shifts'); });
+beforeEach(async () => {
+  await pool.query('DELETE FROM shifts');
+  await pool.query('DELETE FROM user_settings');
+});
 
 after(async () => {
   if (server) await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
@@ -77,6 +80,140 @@ async function seed({ userId = owner, startedAt = new Date(anchor - day), hours 
   }
   return shift.id;
 }
+
+test('settings start unconfigured, require authorization and isolate reads and writes by token owner', async () => {
+  const empty = await request('/settings');
+  assert.equal(empty.status, 200);
+  assert.equal(empty.cache, 'no-store');
+  assert.deepEqual(empty.body.settings, { netProfile: null, deductionRate: null, ppkOptOut: null });
+  assert.equal(empty.body.profiles.length, 6);
+  for (const method of ['GET', 'PUT']) {
+    for (const auth of [null, 'invalid']) {
+      assert.equal((await request('/settings', { method, auth,
+        ...(method === 'PUT' && { body: { netProfile: 'student_under_26' } }),
+      })).status, 401);
+    }
+  }
+  const saved = await request(`/settings?user_id=${other}`, {
+    method: 'PUT', body: { netProfile: 'unemployed_under_26', ppkOptOut: true, deductionRate: '0', user_id: other },
+  });
+  assert.equal(saved.status, 200);
+  assert.deepEqual(saved.body.settings, { netProfile: 'unemployed_under_26', deductionRate: '0.19250', ppkOptOut: true });
+  assert.deepEqual((await request(`/settings?user_id=${other}`)).body.settings, saved.body.settings);
+  assert.equal((await request(`/settings?user_id=${owner}`, { auth: otherToken })).body.settings.netProfile, null);
+  await request('/settings', { method: 'PUT', auth: otherToken, body: { netProfile: 'student_under_26', user_id: owner } });
+  assert.deepEqual((await request('/settings')).body.settings, saved.body.settings);
+});
+
+test('settings persist all profile variants, ignore forged preset rates and reject invalid writes', async () => {
+  for (const [netProfile, ppkOptOut, deductionRate] of [
+    ['student_under_26', false, '0.00000'], ['employed_under_26', true, '0.09000'],
+    ['unemployed_under_26', true, '0.19250'], ['unemployed_under_26', false, '0.21250'],
+    ['employed_26_plus', false, '0.18720'],
+    ['unemployed_26_plus', true, '0.27820'], ['unemployed_26_plus', false, '0.29820'],
+    ['custom', null, '0.12345'], ['custom', null, '0.00000'], ['custom', null, '1.00000'],
+  ]) {
+    const saved = await request('/settings', { method: 'PUT', body: {
+      netProfile, ppkOptOut, deductionRate: netProfile === 'custom' ? deductionRate : '0.55555',
+    } });
+    assert.equal(saved.status, 200);
+    assert.equal(saved.body.settings.deductionRate, deductionRate);
+    assert.equal(saved.body.settings.ppkOptOut, netProfile.startsWith('unemployed') ? ppkOptOut : null);
+    assert.deepEqual((await request('/settings')).body.settings, saved.body.settings);
+  }
+  const previous = (await request('/settings')).body.settings;
+  for (const body of [{}, { netProfile: 'unknown' }, { netProfile: 'unemployed_under_26' },
+    { netProfile: 'custom', deductionRate: '1.01' }, { netProfile: 'custom', deductionRate: '0.123456' }]) {
+    assert.equal((await request('/settings', { method: 'PUT', body })).status, 400);
+    assert.deepEqual((await request('/settings')).body.settings, previous);
+  }
+});
+
+test('net analytics require configured settings, reject invalid modes and never use another owner settings', async () => {
+  await seed();
+  await request('/settings', { auth: otherToken, method: 'PUT', body: { netProfile: 'student_under_26' } });
+  for (const endpoint of ['summary', 'details']) {
+    assert.equal((await request(`/analytics/${endpoint}?mode=estimated_net&user_id=${other}`)).status, 409);
+    for (const query of ['mode=net', 'mode=', 'mode=gross&mode=estimated_net']) {
+      assert.equal((await request(`/analytics/${endpoint}?${query}`)).status, 400);
+    }
+    for (const auth of [null, 'invalid']) {
+      assert.equal((await request(`/analytics/${endpoint}?mode=estimated_net`, { auth })).status, 401);
+    }
+  }
+  assert.equal((await request()).body.summary.totalEarnings, '100.00');
+});
+
+test('net summary recalculates money from unrounded totals and keeps matching distance samples and nonfinancial values', async () => {
+  await seed({ hours: 6, distance: '60', entries: [['glovo', '160', 8], ['bolt_food', '80', 4]] });
+  await seed({ hours: 2, entries: [['glovo', '160', 8]] });
+  await seed({ userId: other, entries: [['glovo', '999', 100]] });
+  await request('/settings', { method: 'PUT', body: { netProfile: 'employed_26_plus' } });
+  const gross = (await request()).body.summary;
+  const net = (await request('/analytics/summary?mode=estimated_net')).body.summary;
+  assert.equal(net.mode, 'estimated_net');
+  assert.equal(net.deductionRate, '0.18720');
+  for (const [field, expected] of Object.entries({ totalEarnings: '325.12', earningsPerShift: '162.56',
+    earningsPerHour: '40.64', earningsPerKm: '3.25', earningsPerOrder: '16.26' })) {
+    assert.equal(net[field], expected);
+  }
+  for (const field of ['shiftCount', 'incompleteShiftCount', 'distanceShiftCount', 'totalHours',
+    'totalDistance', 'totalOrders', 'ordersPerHour']) assert.equal(net[field], gross[field]);
+  const next = await request('/settings', { method: 'PUT', body: { netProfile: 'custom', deductionRate: '0' } });
+  assert.equal(next.status, 200);
+  assert.equal((await request('/analytics/summary?mode=estimated_net')).body.summary.totalEarnings, '400.00');
+  assert.equal((await request()).body.summary.totalEarnings, '400.00');
+  const { rows: [row] } = await pool.query(`SELECT SUM(e.earnings_gross)::text AS gross
+    FROM shift_platform_entries e JOIN shifts s ON s.id = e.shift_id WHERE s.user_id = $1`, [owner]);
+  assert.equal(row.gross, '400.00');
+});
+
+test('net charts recalculate every group, preserve platform restrictions and handle 100 percent and empty data', async () => {
+  await request('/settings', { method: 'PUT', body: { netProfile: 'employed_26_plus' } });
+  const empty = (await request('/analytics/details?mode=estimated_net')).body.details;
+  assert.equal(empty.weekdays[0].earningsPerHour, null);
+  assert.equal(empty.weekdays[0].totalEarnings, '0.00');
+  await seed({ hours: 6, distance: '60', entries: [['glovo', '160', 8], ['bolt_food', '80', 4]] });
+  await seed({ hours: 2, entries: [['glovo', '160', 8]] });
+  const net = (await request('/analytics/details?mode=estimated_net')).body.details;
+  for (const field of ['trend', 'months', 'weekdays', 'startTimes']) {
+    const group = net[field].find((row) => row.shiftCount);
+    assert.equal(group.totalEarnings, '325.12');
+    assert.equal(group.earningsPerOrder, '16.26');
+    assert.equal(group.earningsPerHour, '40.64');
+  }
+  const glovo = net.platforms.find((row) => row.platform === 'glovo');
+  assert.equal(glovo.totalEarnings, '260.10');
+  assert.equal(glovo.earningsShare, '80.00');
+  assert.equal(glovo.ordersShare, '80.00');
+  const filtered = (await request('/analytics/details?mode=estimated_net&platform=glovo')).body.details;
+  assert.equal(filtered.trend[0].totalEarnings, '260.10');
+  assert.equal(filtered.trend[0].earningsPerHour, null);
+  assert.deepEqual(filtered.platforms, net.platforms);
+  await request('/settings', { method: 'PUT', body: { netProfile: 'custom', deductionRate: '1' } });
+  const zero = (await request('/analytics/details?mode=estimated_net')).body.details;
+  assert.equal(zero.trend[0].totalEarnings, '0.00');
+  assert.equal(zero.trend[0].earningsPerHour, '0.00');
+  assert.equal(zero.platforms[0].earningsShare, null);
+  assert.notEqual(zero.platforms[0].ordersShare, null);
+});
+
+test('net earnings round only final aggregates and update after shift edits and deletion', async () => {
+  await request('/settings', { method: 'PUT', body: { netProfile: 'unemployed_26_plus', ppkOptOut: false } });
+  const id = await seed({ distance: null, entries: [['glovo', '0.01', 0], ['bolt_food', '0.01', 0]] });
+  let summary = (await request('/analytics/summary?mode=estimated_net')).body.summary;
+  assert.equal(summary.totalEarnings, '0.01');
+  assert.equal(summary.earningsPerKm, null);
+  assert.equal(summary.earningsPerOrder, null);
+  assert.equal((await request('/analytics/details?mode=estimated_net')).body.details.trend[0].totalEarnings, '0.01');
+  await pool.query('UPDATE shift_platform_entries SET earnings_gross = 100 WHERE shift_id = $1', [id]);
+  summary = (await request('/analytics/summary?mode=estimated_net')).body.summary;
+  assert.equal(summary.totalEarnings, '140.36');
+  await request(`/shifts/${id}`, { method: 'DELETE' });
+  summary = (await request('/analytics/summary?mode=estimated_net')).body.summary;
+  assert.equal(summary.totalEarnings, '0.00');
+  assert.equal(summary.earningsPerHour, null);
+});
 
 test('empty summary has zero totals and null ratios; auth and ownership are enforced', async () => {
   const result = await request();

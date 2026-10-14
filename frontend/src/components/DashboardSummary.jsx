@@ -10,7 +10,7 @@ function money(value) {
 
 export default function DashboardSummary({ summary }) {
   const metrics = [
-    ['Łączny zarobek brutto', money(summary.totalEarnings)],
+    [summary.mode === 'estimated_net' ? 'Łączny zarobek — szacowane netto' : 'Łączny zarobek brutto', money(summary.totalEarnings)],
     ['Liczba zmian', number(summary.shiftCount)],
     ['Łączny czas pracy', `${number(summary.totalHours)} godz.`],
     ['Łączny dystans', summary.distanceShiftCount ? `${number(summary.totalDistance)} km` : 'Brak danych'],

@@ -2,14 +2,16 @@ const API_BASE_URL = (
   import.meta.env?.VITE_API_BASE_URL || 'http://localhost:3000/api'
 ).replace(/\/$/, '');
 
-export async function getSummary(token, period, signal) {
-  return requestAnalytics(token, `summary?period=${encodeURIComponent(period)}`, signal);
+export async function getSummary(token, period, signal, mode = 'gross') {
+  return requestAnalytics(token, `summary?period=${encodeURIComponent(period)}${modeQuery(mode)}`, signal);
 }
 
-export async function getDetails(token, period, platform, signal) {
+export async function getDetails(token, period, platform, signal, mode = 'gross') {
   return requestAnalytics(token,
-    `details?period=${encodeURIComponent(period)}&platform=${encodeURIComponent(platform)}`, signal);
+    `details?period=${encodeURIComponent(period)}&platform=${encodeURIComponent(platform)}${modeQuery(mode)}`, signal);
 }
+
+const modeQuery = (mode) => mode === 'gross' ? '' : `&mode=${encodeURIComponent(mode)}`;
 
 async function requestAnalytics(token, path, signal) {
   let response;

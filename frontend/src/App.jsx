@@ -7,6 +7,7 @@ import Dashboard from './screens/Dashboard.jsx';
 import ActiveShift from './screens/ActiveShift.jsx';
 import ShiftHistory from './screens/ShiftHistory.jsx';
 import ShiftDetails from './screens/ShiftDetails.jsx';
+import Settings from './screens/Settings.jsx';
 
 const links = [
   { to: '/', label: 'Start' },
@@ -15,6 +16,7 @@ const links = [
   { to: '/dashboard', label: 'Dashboard' },
   { to: '/shifts/active', label: 'Zmiana robocza' },
   { to: '/history', label: 'Historia' },
+  { to: '/settings', label: 'Ustawienia' },
 ];
 
 export default function App() {
@@ -62,6 +64,9 @@ export default function App() {
             : <Navigate to="/login" replace />} />
           <Route path="/shifts/:id" element={session
             ? <ShiftDetails session={session} onSessionExpired={expireSession} />
+            : <Navigate to="/login" replace />} />
+          <Route path="/settings" element={session
+            ? <Settings session={session} onSessionExpired={expireSession} />
             : <Navigate to="/login" replace />} />
           <Route path="*" element={<h1 className="text-2xl font-semibold">Nie znaleziono strony</h1>} />
         </Routes>

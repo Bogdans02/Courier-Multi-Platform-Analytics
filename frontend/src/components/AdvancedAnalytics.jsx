@@ -13,14 +13,15 @@ function share(value) {
   return value === null ? 'Brak danych' : `${Number(value).toLocaleString('pl-PL')}%`;
 }
 
-function ResultGroup({ title, kind, rows, description, showHourly }) {
+function ResultGroup({ title, kind, rows, description, showHourly, mode }) {
   const chart = analyticsChartData(kind, rows);
+  const moneyLabel = mode === 'estimated_net' ? 'Szacowane netto' : 'Brutto';
   return (
     <section className="min-w-0 space-y-3 rounded border border-slate-300 bg-white p-3">
       <h3 className="text-lg font-semibold">{title}</h3>
       <p className="text-sm text-slate-600">{description}</p>
       {rows.some((row) => row.shiftCount > 0)
-        ? <AnalyticsChart title={`${title} — zarobek brutto w PLN`} type={kind === 'trend' ? 'line' : 'bar'} {...chart} />
+        ? <AnalyticsChart title={`${title} — ${moneyLabel.toLowerCase()} w PLN`} type={kind === 'trend' ? 'line' : 'bar'} {...chart} />
         : <p>Brak danych w wybranym okresie.</p>}
       <details>
         <summary className="cursor-pointer py-2 underline">Pokaż wartości: {title.toLowerCase()}</summary>
@@ -30,7 +31,7 @@ function ResultGroup({ title, kind, rows, description, showHourly }) {
             <thead><tr>
               <th scope="col" className="p-2">Grupa</th>
               <th scope="col" className="p-2">Zmiany</th>
-              <th scope="col" className="p-2">Brutto</th>
+              <th scope="col" className="p-2">{moneyLabel}</th>
               <th scope="col" className="p-2">Zamówienia</th>
               <th scope="col" className="p-2">Zł/zamówienie</th>
               {showHourly && <th scope="col" className="p-2">Zł/h</th>}
@@ -60,16 +61,16 @@ function ResultGroup({ title, kind, rows, description, showHourly }) {
   );
 }
 
-export default function AdvancedAnalytics({ token, period, onSessionExpired }) {
+export default function AdvancedAnalytics({ token, period, mode = 'gross', onSessionExpired }) {
   const [platform, setPlatform] = useState('all');
   const [reload, setReload] = useState(0);
   const [result, setResult] = useState({ key: '', status: 'loading', details: null, message: '' });
-  const key = `${period}/${platform}/${reload}`;
+  const key = `${period}/${platform}/${mode}/${reload}`;
   const current = result.key === key ? result : { status: 'loading' };
 
   useEffect(() => {
     const controller = new AbortController();
-    getDetails(token, period, platform, controller.signal)
+    getDetails(token, period, platform, controller.signal, mode)
       .then(({ details }) => {
         if (!controller.signal.aborted) setResult({ key, status: 'success', details, message: '' });
       })
@@ -79,7 +80,7 @@ export default function AdvancedAnalytics({ token, period, onSessionExpired }) {
         else setResult({ key, status: 'error', details: null, message: error.message });
       });
     return () => controller.abort();
-  }, [token, period, platform, key, onSessionExpired]);
+  }, [token, period, platform, mode, key, onSessionExpired]);
 
   const details = current.details;
   return (
@@ -110,18 +111,18 @@ export default function AdvancedAnalytics({ token, period, onSessionExpired }) {
           Pominięto zmiany bez uzupełnionych platform: {details.incompleteShiftCount}.
         </p>}
         {details.shiftCount === 0 && <p>Brak uzupełnionych zmian dla wybranej platformy i okresu.</p>}
-        <ResultGroup title="Dzienny trend zarobków" kind="trend" rows={details.trend}
-          description="Suma brutto według dnia rozpoczęcia. Dni bez uzupełnionych zmian nie są pokazane." />
-        <ResultGroup title="Wyniki według dnia tygodnia" kind="weekdays" rows={details.weekdays}
+        <ResultGroup title="Dzienny trend zarobków" kind="trend" rows={details.trend} mode={details.mode}
+          description="Suma zarobków w wybranym trybie według dnia rozpoczęcia. Dni bez uzupełnionych zmian nie są pokazane." />
+        <ResultGroup title="Wyniki według dnia tygodnia" kind="weekdays" rows={details.weekdays} mode={details.mode}
           showHourly={platform === 'all'} description={platform === 'all'
             ? 'Wartości z całych zmian; zł/h to iloraz sumy zarobków i czasu pracy.'
             : 'Zarobki i zamówienia wybranej platformy według dnia rozpoczęcia zmiany.'} />
-        <ResultGroup title="Porównanie miesięcy" kind="months" rows={details.months}
+        <ResultGroup title="Porównanie miesięcy" kind="months" rows={details.months} mode={details.mode}
           showHourly={platform === 'all'}
           description="Miesiące kalendarzowe. Bieżący miesiąc i miesiące przycięte filtrem okresu są niepełne; porównuj także liczbę zmian i zł/h, gdy dostępne." />
-        <ResultGroup title="Czas rozpoczęcia zmiany" kind="startTimes" rows={details.startTimes}
+        <ResultGroup title="Czas rozpoczęcia zmiany" kind="startTimes" rows={details.startTimes} mode={details.mode}
           showHourly={platform === 'all'} description="Przedziały obejmują początek i nie obejmują końca, np. 06:00 należy do 06:00–12:00." />
-        <ResultGroup title="Porównanie platform" kind="platforms" rows={details.platforms}
+        <ResultGroup title="Porównanie platform" kind="platforms" rows={details.platforms} mode={details.mode}
           description="Wszystkie platformy z wybranego okresu, niezależnie od filtra wykresów czasowych. Udziały liczone względem ich łącznych zarobków i zamówień. Liczba zmian obejmuje każdą zmianę, w której użyto danej platformy." />
       </>}
     </section>

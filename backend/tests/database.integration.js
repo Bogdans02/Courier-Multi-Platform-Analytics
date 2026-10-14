@@ -25,7 +25,7 @@ before(async () => {
   url.searchParams.set('options', `-c search_path=${schema}`);
   pool = createDatabasePool(url.toString());
 
-  assert.deepEqual(await runMigrations(pool), ['001_initial_schema.sql']);
+  assert.deepEqual(await runMigrations(pool), ['001_initial_schema.sql', '002_net_settings_ppk.sql']);
 });
 
 after(async () => {
@@ -87,7 +87,7 @@ test('failed migrations roll back DDL and migration history together', async () 
         (SELECT COUNT(*)::integer FROM schema_migrations) AS migrations_count
     `);
     assert.equal(row.probe, null);
-    assert.equal(row.migrations_count, 1);
+    assert.equal(row.migrations_count, 2);
   } finally {
     await rm(join(directory, '002_broken.sql'), { force: true });
     await rmdir(directory);

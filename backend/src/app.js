@@ -7,6 +7,7 @@ import { errorHandler } from './middleware/errorHandler.js';
 import { createAuthRoutes } from './routes/authRoutes.js';
 import { createShiftRoutes } from './routes/shiftRoutes.js';
 import { createAnalyticsRoutes } from './routes/analyticsRoutes.js';
+import { createSettingsRoutes } from './routes/settingsRoutes.js';
 
 export function createApp(pool, jwtSecret) {
   const app = express();
@@ -18,6 +19,7 @@ export function createApp(pool, jwtSecret) {
     app.use('/api/auth', createAuthRoutes(pool, jwtSecret));
     app.use('/api/shifts', createShiftRoutes(pool, jwtSecret));
     app.use('/api/analytics', createAnalyticsRoutes(pool, jwtSecret));
+    app.use('/api/settings', createSettingsRoutes(pool, jwtSecret));
   }
   app.use(notFound);
   app.use(errorHandler);

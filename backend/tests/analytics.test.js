@@ -12,7 +12,7 @@ test('summary validates the period and calculates rolling UTC bounds before quer
   for (const [period, days] of [['week', 7], ['month', 30], ['three_months', 90], ['all', null], [undefined, null]]) {
     const summary = await service.summary(42, period);
     const from = days ? new Date(now.getTime() - days * 86400000) : null;
-    assert.deepEqual(calls.at(-1), [42, from, now]);
+    assert.deepEqual(calls.at(-1), [42, from, now, '0']);
     assert.equal(summary.from, from?.toISOString() ?? null);
     assert.equal(summary.to, now.toISOString());
     assert.equal(summary.period, period ?? 'all');
@@ -33,7 +33,7 @@ test('details validates both filters and supplies ordered empty weekday and star
     return { trend: [], months: [], weekdays: [], startTimes: [], platforms: [], shiftCount: 0 };
   } }, () => now);
   const result = await service.details(42, 'week', 'glovo');
-  assert.deepEqual(calls[0], [42, new Date('2026-10-06T12:00:00Z'), now, 'glovo']);
+  assert.deepEqual(calls[0], [42, new Date('2026-10-06T12:00:00Z'), now, 'glovo', '0']);
   assert.equal(result.timeZone, 'Europe/Warsaw');
   assert.deepEqual(result.weekdays.map((row) => row.key), ['1', '2', '3', '4', '5', '6', '7']);
   assert.deepEqual(result.startTimes.map((row) => row.key), ['0', '1', '2', '3']);

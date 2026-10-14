@@ -1,4 +1,5 @@
-import { validateSummaryPeriod, validateAnalyticsPlatform } from '../validators/analyticsValidator.js';
+import { validateSummaryPeriod, validateAnalyticsPlatform, validateEarningsMode } from '../validators/analyticsValidator.js';
+import { httpError } from '../utils/httpError.js';
 
 function periodBounds(value, to) {
   const period = validateSummaryPeriod(value);
@@ -11,13 +12,23 @@ function emptyGroup(key) {
     earningsPerOrder: null, earningsPerHour: null };
 }
 
-export function createAnalyticsService(analytics, clock = () => new Date()) {
+export function createAnalyticsService(analytics, clock = () => new Date(), settings) {
+  async function earningsSettings(userId, value) {
+    const mode = validateEarningsMode(value);
+    if (mode === 'gross') return { mode, deductionRate: '0' };
+    const saved = await settings.get(userId);
+    if (!saved.netProfile || saved.deductionRate === null) {
+      throw httpError(409, 'Najpierw zapisz profil w ustawieniach szacowanego netto.');
+    }
+    return { mode, deductionRate: saved.deductionRate };
+  }
   return {
-    async summary(userId, value) {
+    async summary(userId, value, modeValue) {
       const { period, from, to } = periodBounds(value, clock());
-      const row = await analytics.summary(userId, from, to);
+      const { mode, deductionRate } = await earningsSettings(userId, modeValue);
+      const row = await analytics.summary(userId, from, to, deductionRate);
       return {
-        period,
+        period, mode, deductionRate: mode === 'estimated_net' ? deductionRate : null,
         from: from?.toISOString() ?? null,
         to: to.toISOString(),
         ...row,
@@ -25,12 +36,13 @@ export function createAnalyticsService(analytics, clock = () => new Date()) {
         totalOrders: Number(row.totalOrders),
       };
     },
-    async details(userId, periodValue, platformValue) {
+    async details(userId, periodValue, platformValue, modeValue) {
       const { period, from, to } = periodBounds(periodValue, clock());
       const platform = validateAnalyticsPlatform(platformValue);
-      const result = await analytics.details(userId, from, to, platform);
+      const { mode, deductionRate } = await earningsSettings(userId, modeValue);
+      const result = await analytics.details(userId, from, to, platform, deductionRate);
       return {
-        period, platform, timeZone: 'Europe/Warsaw',
+        period, platform, mode, deductionRate: mode === 'estimated_net' ? deductionRate : null, timeZone: 'Europe/Warsaw',
         from: from?.toISOString() ?? null, to: to.toISOString(),
         ...result,
         weekdays: [1, 2, 3, 4, 5, 6, 7].map((key) =>

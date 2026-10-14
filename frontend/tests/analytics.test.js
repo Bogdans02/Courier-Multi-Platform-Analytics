@@ -3,6 +3,18 @@ import { test } from 'node:test';
 import { getSummary, getDetails } from '../src/services/api/analytics.js';
 import { analyticsChartData, analyticsLabel } from '../src/utils/analyticsFormat.js';
 
+test('analytics API requests estimated net for both summary and chart data without sending a client rate', async (t) => {
+  const urls = [];
+  t.mock.method(globalThis, 'fetch', async (url) => {
+    urls.push(url);
+    return new Response(JSON.stringify({}));
+  });
+  await getSummary('token', 'all', undefined, 'estimated_net');
+  await getDetails('token', 'month', 'glovo', undefined, 'estimated_net');
+  assert.match(urls[0], /summary\?period=all&mode=estimated_net$/);
+  assert.match(urls[1], /details\?period=month&platform=glovo&mode=estimated_net$/);
+});
+
 test('summary API sends the selected period, Bearer token and abort signal and returns server metrics', async (t) => {
   const signal = new AbortController().signal;
   const summary = { totalEarnings: '400.00', earningsPerKm: null };
