@@ -86,8 +86,14 @@ export function createAnalyticsRepository(pool) {
             COALESCE(SUM(distance_km) FILTER (WHERE earnings IS NOT NULL), 0) AS distance,
             COALESCE(SUM(earnings) FILTER (WHERE distance_km IS NOT NULL), 0) AS distance_earnings
           FROM shift_totals
+        ), expense_totals AS (
+          SELECT COUNT(*)::integer AS count, COALESCE(SUM(amount), 0) AS amount FROM expenses
+          WHERE user_id = $1
+            AND ($2::timestamptz IS NULL OR expense_date >= ($2 AT TIME ZONE 'Europe/Warsaw')::date)
+            AND expense_date <= ($3::timestamptz AT TIME ZONE 'Europe/Warsaw')::date
         )
         SELECT shift_count AS "shiftCount", incomplete_shift_count AS "incompleteShiftCount",
+          expense_totals.count AS "expenseCount", ROUND(expense_totals.amount, 2)::text AS "totalExpenses",
           distance_shift_count AS "distanceShiftCount",
           ROUND(earnings, 2)::text AS "totalEarnings", orders::text AS "totalOrders",
           hours::text AS "totalHours", ROUND(distance, 2)::text AS "totalDistance",
@@ -96,7 +102,7 @@ export function createAnalyticsRepository(pool) {
           ROUND(distance_earnings / NULLIF(distance, 0), 2)::text AS "earningsPerKm",
           ROUND(orders / NULLIF(hours, 0), 2)::text AS "ordersPerHour",
           ROUND(earnings / NULLIF(orders, 0), 2)::text AS "earningsPerOrder"
-        FROM totals
+        FROM totals CROSS JOIN expense_totals
       `, [userId, from, to, deductionRate]);
       return row;
     },

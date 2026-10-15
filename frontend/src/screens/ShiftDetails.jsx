@@ -69,6 +69,7 @@ export default function ShiftDetails({ session, onSessionExpired }) {
             <div><dt className="font-medium">Dystans</dt><dd>{formatDistance(shift.distanceKm)}</dd></div>
           </dl>
           {shift.status === 'completed' && <ShiftPlatformSummary shift={shift} />}
+          <p><Link to="/expenses" state={{ shiftId: shift.id }} className="underline">Dodaj koszt do tej zmiany</Link></p>
           {editing && shift.status === 'completed' ? (
             <ShiftForm key={shift.id} shift={shift} onSubmit={save} onCancel={() => setEditing(false)} />
           ) : (

@@ -62,6 +62,7 @@ export default function Dashboard({ session, onSessionExpired }) {
       <h1 className="text-2xl font-semibold">Dashboard</h1>
       <p><Link to="/shifts/active" className="underline">Rozpocznij lub zakończ zmianę</Link></p>
       <p><Link to="/history" className="underline">Historia zmian</Link></p>
+      <p><Link to="/expenses" className="underline">Dodaj lub przeglądaj koszty</Link></p>
       <p><Link to="/settings" className="underline">Ustawienia szacowanego netto</Link></p>
       {account.status === 'loading' && <p role="status">Sprawdzanie sesji...</p>}
       {account.user && <p>Zalogowano jako: <strong>{account.user.email}</strong></p>}

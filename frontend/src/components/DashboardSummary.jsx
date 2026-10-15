@@ -11,6 +11,7 @@ function money(value) {
 export default function DashboardSummary({ summary }) {
   const metrics = [
     [summary.mode === 'estimated_net' ? 'Łączny zarobek — szacowane netto' : 'Łączny zarobek brutto', money(summary.totalEarnings)],
+    ['Łączne koszty w okresie', money(summary.totalExpenses)],
     ['Liczba zmian', number(summary.shiftCount)],
     ['Łączny czas pracy', `${number(summary.totalHours)} godz.`],
     ['Łączny dystans', summary.distanceShiftCount ? `${number(summary.totalDistance)} km` : 'Brak danych'],
@@ -41,6 +42,8 @@ export default function DashboardSummary({ summary }) {
         Dystans podano dla {summary.distanceShiftCount} z {summary.shiftCount} zmian.
         Zarobek na kilometr uwzględnia tylko zarobki i dystans z tych samych zmian.
         Brak danych oznacza brak podstaw do obliczenia wskaźnika.
+        Koszty ({summary.expenseCount}) są sumowane według ich daty, włącznie z datami granicznymi okresu
+        w strefie Europe/Warsaw, także bez powiązania ze zmianą. Kwota kosztów jest taka sama w obu trybach finansowych.
       </p>
     </>
   );
