@@ -13,7 +13,8 @@ import { createExpenseRoutes } from './routes/expenseRoutes.js';
 export function createApp(pool, jwtSecret) {
   const app = express();
 
-  app.use(cors({ origin: frontendOrigin }));
+  // Capacitor serves bundled Android assets from this local HTTPS origin.
+  app.use(cors({ origin: [frontendOrigin, 'https://localhost'] }));
   app.use(express.json());
   app.use('/api', healthRoutes);
   if (pool) {

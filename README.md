@@ -114,6 +114,31 @@ npm.cmd run dev
 
 Domyślny adres: `http://localhost:5173`.
 
+### Android
+
+Wymagane są Android Studio, JDK 21, Android SDK Platform 36, Build Tools 36.0.0 i Platform Tools (`adb`). W Android Studio wybierz JDK 21 jako Gradle JDK. Projekt natywny znajduje się w `frontend/android`; `webDir` wskazuje build Vite w `dist`.
+
+Do developmentu na Android Emulatorze uruchom backend, emulator i w katalogu `frontend` wykonaj:
+
+```powershell
+npm.cmd run android:sync:emulator
+npm.cmd run android:open
+```
+
+Tryb Vite `android-emulator` pobiera `VITE_API_BASE_URL` z `frontend/.env.android-emulator`: `http://10.0.2.2:3000/api`. Nie wymaga `adb reverse`. Przeglądarka na Windows nadal korzysta z `frontend/.env` (domyślnie `http://localhost:3000/api`) przez `npm.cmd run dev` lub zwykły `npm.cmd run build`. Zmienna `VITE_API_BASE_URL` ustawiona w terminalu ma pierwszeństwo przed plikami `.env`; usuń ją przed buildem emulatora, jeśli wskazuje inny adres.
+
+Telefon z debugowaniem USB może nadal korzystać z `VITE_API_BASE_URL=http://localhost:3000/api` w `frontend/.env`. Po podłączeniu telefonu, w katalogu `frontend`, wykonaj:
+
+```powershell
+adb reverse tcp:3000 tcp:3000
+npm.cmd run android:sync
+npm.cmd run android:open
+```
+
+`adb` musi być dostępne w PATH (katalog `platform-tools` Android SDK). Przy kilku urządzeniach wybierz jedno przez `adb -s <id> reverse tcp:3000 tcp:3000`. Backend domyślnie dopuszcza origin przeglądarki oraz `https://localhost` używany przez Capacitor. HTTP do `localhost`, `127.0.0.1` i `10.0.2.2` oraz mixed content są dozwolone tylko w wariancie debug. Po odłączeniu telefonu może być konieczne ponowienie `adb reverse`.
+
+W Android Studio wybierz urządzenie i uruchom wariant `debug` przyciskiem Run. Alternatywnie użyj `npm.cmd run android:run:emulator` dla emulatora lub `npm.cmd run android:run` dla telefonu USB. APK można zbudować poleceniem `.\gradlew.bat assembleDebug` z katalogu `frontend/android`; wynik to `app/build/outputs/apk/debug/app-debug.apk`. Zmiana adresu API lub kodu React wymaga ponownego `android:sync:emulator` (emulator) lub `android:sync` (USB), a następnie ponownego uruchomienia aplikacji przez Run. Wersja release wymaga buildu z adresem backendu HTTPS.
+
 ## Kontrole
 
 Frontend:

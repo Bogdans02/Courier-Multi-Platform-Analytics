@@ -1,0 +1,11 @@
+{
+  "appId": "pl.courieranalytics.app",
+  "appName": "Courier Analytics",
+  "webDir": "dist",
+  "plugins": {
+    "SystemBars": {
+      "insetsHandling": "native",
+      "style": "LIGHT"
+    }
+  }
+}

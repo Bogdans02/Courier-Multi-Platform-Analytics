@@ -7,7 +7,7 @@ export default function Login({ onLogin }) {
   const location = useLocation();
 
   async function submit(credentials) {
-    onLogin(await login(credentials));
+    await onLogin(await login(credentials));
     navigate('/dashboard', { replace: true });
   }
 

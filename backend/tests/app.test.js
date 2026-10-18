@@ -34,6 +34,18 @@ test('unknown routes return a JSON 404', async () => {
   assert.deepEqual(await response.json(), { message: 'Route not found.' });
 });
 
+test('CORS permits the bundled Android origin and rejects unrelated origins', async () => {
+  const allowed = await fetch(`${baseUrl}/api/auth/me`, {
+    method: 'OPTIONS',
+    headers: { Origin: 'https://localhost', 'Access-Control-Request-Method': 'GET', 'Access-Control-Request-Headers': 'authorization' },
+  });
+  assert.equal(allowed.status, 204);
+  assert.equal(allowed.headers.get('access-control-allow-origin'), 'https://localhost');
+  assert.match(allowed.headers.get('access-control-allow-headers'), /authorization/i);
+  const rejected = await fetch(`${baseUrl}/api/health`, { headers: { Origin: 'https://unrelated.example' } });
+  assert.equal(rejected.headers.get('access-control-allow-origin'), null);
+});
+
 test('invalid JSON is handled by the centralized error middleware', async () => {
   const response = await fetch(`${baseUrl}/api/health`, {
     method: 'POST',
