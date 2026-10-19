@@ -1,9 +1,17 @@
 import { validatePlatformEntries } from './platformEntries.js';
 
+function matchesCalendarDate(value, timestamp) {
+  const date = new Date(timestamp);
+  const [year, month, day] = value.split('T')[0].split('-').map(Number);
+  // Date normalizes invalid days, e.g. February 30 becomes a day in March.
+  return date.getFullYear() === year && date.getMonth() + 1 === month && date.getDate() === day;
+}
+
 export function validateShiftForm({ startedAt, endedAt, distanceKm, platformEntries }) {
   const start = new Date(startedAt).getTime();
   const end = new Date(endedAt).getTime();
-  if (!startedAt || !endedAt || !Number.isFinite(start) || !Number.isFinite(end)) {
+  if (!startedAt || !endedAt || !Number.isFinite(start) || !Number.isFinite(end)
+    || !matchesCalendarDate(startedAt, start) || !matchesCalendarDate(endedAt, end)) {
     return 'Podaj poprawną datę i godzinę rozpoczęcia oraz zakończenia.';
   }
   if (end <= start) return 'Zakończenie zmiany musi być późniejsze niż rozpoczęcie.';

@@ -24,6 +24,14 @@ test('shift form validates time order and distance and converts local dates to U
   assert.equal(formatDistance('0.00'), '0 km');
 });
 
+test('shift form rejects impossible calendar dates instead of silently moving the shift to another day', () => {
+  for (const startedAt of ['2026-02-29T08:00', '2026-02-30T08:00', '2026-04-31T08:00']) {
+    assert.notEqual(validateShiftForm({ ...valid, startedAt }), '');
+  }
+  assert.notEqual(validateShiftForm({ ...valid, startedAt: '2026-02-01T08:00', endedAt: '2026-02-30T10:00' }), '');
+  assert.equal(validateShiftForm({ ...valid, startedAt: '2024-02-29T08:00', endedAt: '2024-02-29T10:00' }), '');
+});
+
 test('shift API sends Bearer tokens, lifecycle methods and edit payloads and handles empty delete responses', async (t) => {
   const requests = [];
   t.mock.method(globalThis, 'fetch', async (url, options) => {

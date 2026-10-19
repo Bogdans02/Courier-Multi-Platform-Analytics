@@ -7,6 +7,7 @@ import jwt from 'jsonwebtoken';
 import { createApp } from '../src/app.js';
 import { createDatabasePool } from '../src/config/database.js';
 import { runMigrations } from '../src/db/migrate.js';
+import { createUserRepository } from '../src/repositories/userRepository.js';
 
 const schema = `auth_test_${randomUUID().replaceAll('-', '')}`;
 const secret = randomBytes(32).toString('hex');
@@ -69,6 +70,23 @@ test('registration stores a salted hash and creates empty settings atomically', 
   assert.equal(bcrypt.getRounds(row.password_hash), 12);
   assert.equal(row.net_profile, null);
   assert.equal(row.deduction_rate, null);
+});
+
+test('registration rolls back the new account when creating its settings fails', async () => {
+  // The trigger and all records belong only to this test's random schema.
+  await pool.query(`CREATE FUNCTION reject_test_settings() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN RAISE EXCEPTION 'Test settings insert failure'; END; $$`);
+  await pool.query(`CREATE TRIGGER reject_test_settings BEFORE INSERT ON user_settings
+    FOR EACH ROW EXECUTE FUNCTION reject_test_settings()`);
+  try {
+    const email = 'rollback@example.invalid';
+    await assert.rejects(createUserRepository(pool).create(email, 'test-only-hash'), { code: 'P0001' });
+    assert.equal((await pool.query('SELECT id FROM users WHERE email = $1', [email])).rowCount, 0);
+    assert.equal((await pool.query('SELECT user_id FROM user_settings')).rowCount, 1);
+  } finally {
+    await pool.query('DROP TRIGGER reject_test_settings ON user_settings');
+    await pool.query('DROP FUNCTION reject_test_settings()');
+  }
 });
 
 test('duplicate email ignores case and whitespace and leaves only one account', async () => {
