@@ -4,6 +4,16 @@ const entryColumns = `COALESCE((
     'ordersCount', e.orders_count) ORDER BY e.id)
   FROM shift_platform_entries e WHERE e.shift_id = shifts.id
 ), '[]'::json) AS platform_entries`;
+// Read the owner's current rate and round only after summing the whole shift.
+const estimatedNetColumn = `(
+  SELECT CASE WHEN shifts.status = 'completed' AND settings.net_profile IS NOT NULL
+    AND settings.deduction_rate IS NOT NULL AND COUNT(e.id) > 0
+    THEN ROUND(SUM(e.earnings_gross) * (1 - settings.deduction_rate), 2)::text END
+  FROM user_settings settings
+  LEFT JOIN shift_platform_entries e ON e.shift_id = shifts.id
+  WHERE settings.user_id = shifts.user_id
+  GROUP BY settings.net_profile, settings.deduction_rate
+) AS estimated_net_earnings`;
 
 export function createShiftRepository(pool) {
   return {
@@ -22,14 +32,14 @@ export function createShiftRepository(pool) {
     },
     async list(userId) {
       const { rows } = await pool.query(
-        `SELECT ${columns}, ${entryColumns} FROM shifts WHERE user_id = $1 AND status = 'completed'
+        `SELECT ${columns}, ${entryColumns}, ${estimatedNetColumn} FROM shifts WHERE user_id = $1 AND status = 'completed'
          ORDER BY started_at DESC, id DESC`, [userId],
       );
       return rows;
     },
     async findById(userId, id) {
       const { rows } = await pool.query(
-        `SELECT ${columns}, ${entryColumns} FROM shifts WHERE user_id = $1 AND id = $2`, [userId, id],
+        `SELECT ${columns}, ${entryColumns}, ${estimatedNetColumn} FROM shifts WHERE user_id = $1 AND id = $2`, [userId, id],
       );
       return rows[0];
     },

@@ -47,6 +47,7 @@ before(async () => {
 beforeEach(async () => {
   // This pool is restricted to the newly created random test schema.
   await pool.query('DELETE FROM shifts');
+  await pool.query('DELETE FROM user_settings');
 });
 
 after(async () => {
@@ -258,4 +259,43 @@ test('a failed entry insert rolls back both the shift update and replacement of 
     distanceKm: '25', platformEntries: [entry, entry],
   }), { code: '23505' });
   assert.deepEqual((await request(`/${shift.id}`)).body.shift, saved);
+});
+
+test('shift estimates use the current owner profile, exact decimal totals and one rounding per shift', async () => {
+  const shift = await completedShift();
+  const entries = [{ ...entry, earningsGross: '0.01' },
+    { platform: 'bolt_food', earningsGross: '0.01', ordersCount: 1 }];
+  await request(`/${shift.id}`, { method: 'PUT', body: { ...times, platformEntries: entries } });
+  assert.equal((await request(`/${shift.id}`)).body.shift.estimatedNetEarnings, null);
+  await pool.query(`INSERT INTO user_settings (user_id, net_profile, deduction_rate)
+    VALUES ($1, 'custom', 0.5), ($2, 'custom', 1)`, [firstUser, secondUser]);
+  // Rounding each 0.005 entry first would incorrectly produce 0.02.
+  for (const [rate, expected] of [['0.5', '0.01'], ['0', '0.02'], ['1', '0.00']]) {
+    await pool.query('UPDATE user_settings SET deduction_rate = $2 WHERE user_id = $1', [firstUser, rate]);
+    const detail = (await request(`/${shift.id}?user_id=${secondUser}`)).body.shift;
+    assert.equal(detail.totalEarnings, '0.02');
+    assert.equal(detail.estimatedNetEarnings, expected);
+    assert.deepEqual(detail.platformEntries, entries);
+    assert.equal((await request()).body.shifts[0].estimatedNetEarnings, expected);
+    assert.equal((await request(`/${shift.id}`, { auth: secondToken })).status, 404);
+    assert.deepEqual((await request('', { auth: secondToken })).body.shifts, []);
+  }
+  await pool.query('UPDATE user_settings SET deduction_rate = 0.1 WHERE user_id = $1', [firstUser]);
+  const updated = (await request(`/${shift.id}`, { method: 'PUT', body: { ...times,
+    platformEntries: [{ ...entry, earningsGross: '1.05' }] } })).body.shift;
+  assert.equal(updated.estimatedNetEarnings, '0.95');
+  assert.equal(updated.totalEarnings, '1.05');
+  assert.deepEqual((await request(`/${shift.id}`)).body.shift, updated);
+});
+
+test('active and incomplete shifts have no estimated earnings, and a missing profile is not a zero rate', async () => {
+  await pool.query(`INSERT INTO user_settings (user_id, net_profile, deduction_rate) VALUES ($1, 'custom', 0)`, [firstUser]);
+  const { body: { shift: active } } = await request('/start', { method: 'POST' });
+  assert.equal((await request(`/${active.id}`)).body.shift.estimatedNetEarnings, null);
+  await request(`/${active.id}/finish`, { method: 'POST' });
+  assert.equal((await request()).body.shifts[0].estimatedNetEarnings, null);
+  await request(`/${active.id}`, { method: 'PUT', body: times });
+  assert.equal((await request()).body.shifts[0].estimatedNetEarnings, '160.50');
+  await pool.query('UPDATE user_settings SET net_profile = NULL WHERE user_id = $1', [firstUser]);
+  assert.equal((await request()).body.shifts[0].estimatedNetEarnings, null);
 });

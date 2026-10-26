@@ -16,6 +16,7 @@ function presentShift(row) {
     durationSeconds: row.ended_at ? (row.ended_at - row.started_at) / 1000 : null,
     platformEntries,
     totalEarnings: (earningsCents / 100).toFixed(2),
+    estimatedNetEarnings: row.estimated_net_earnings ?? null,
     totalOrders: platformEntries.reduce((sum, entry) => sum + entry.ordersCount, 0),
   };
 }
@@ -61,7 +62,7 @@ export function createShiftService(shifts) {
       if (row.status !== 'completed') throw httpError(409, 'Zakończ zmianę przed edycją jej podsumowania.');
       const updated = await shifts.update(userId, id, validateShiftUpdate(body));
       if (!updated) throw httpError(404, 'Nie znaleziono zmiany.');
-      return presentShift(updated);
+      return presentShift(await findOwned(userId, id));
     },
     async remove(userId, value) {
       if (!await shifts.remove(userId, validateShiftId(value))) throw httpError(404, 'Nie znaleziono zmiany.');
