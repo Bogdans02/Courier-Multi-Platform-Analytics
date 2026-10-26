@@ -1,6 +1,6 @@
 {
-  "appId": "pl.courieranalytics.app",
-  "appName": "Courier Analytics",
+  "appId": "pl.courstat.app",
+  "appName": "CourStat",
   "webDir": "dist",
   "plugins": {
     "SystemBars": {

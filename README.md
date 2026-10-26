@@ -1,4 +1,4 @@
-# Courier Multi-Platform Analytics
+# CourStat
 
 Aplikacja Android do rejestrowania i analizy pracy kuriera korzystającego z jednej lub kilku platform dostawczych, takich jak Glovo, Bolt Food czy Uber Eats.
 

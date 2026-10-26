@@ -28,7 +28,7 @@ export default function App() {
   if (status !== 'ready') {
     return (
       <main className="mx-auto max-w-2xl space-y-3 p-4">
-        <h1 className="text-2xl font-semibold">Courier Multi-Platform Analytics</h1>
+        <h1 className="text-2xl font-semibold">CourStat</h1>
         {status === 'restoring' && <p role="status">Odtwarzanie sesji...</p>}
         {status === 'clearing' && <p role="status">Wylogowywanie...</p>}
         {message && <p role="alert" className="text-red-700">{message}</p>}
@@ -45,7 +45,7 @@ export default function App() {
   return (
     <div className="mx-auto max-w-2xl p-4">
       <header className="mb-6 border-b border-slate-300 pb-4">
-        <p className="mb-3 font-semibold">Courier Multi-Platform Analytics</p>
+        <p className="mb-3 font-semibold">CourStat</p>
         <nav aria-label="Nawigacja główna" className="flex flex-wrap gap-2">
           {links.filter(({ to }) => !session || (to !== '/login' && to !== '/register')).map(({ to, label }) => (
             <NavLink

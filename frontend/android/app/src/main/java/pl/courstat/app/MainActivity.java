@@ -1,4 +1,4 @@
-package pl.courieranalytics.app;
+package pl.courstat.app;
 
 import android.os.Bundle;
 import android.webkit.WebSettings;
