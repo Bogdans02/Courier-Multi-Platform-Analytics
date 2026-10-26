@@ -4,6 +4,8 @@ import { platforms } from '../utils/platformEntries.js';
 import { analyticsLabel, analyticsChartData } from '../utils/analyticsFormat.js';
 import { formatMoney } from '../utils/shiftFormat.js';
 import AnalyticsChart from './AnalyticsChart.jsx';
+import PlatformBadge from './PlatformBadge.jsx';
+import IncompleteShiftsNotice from './IncompleteShiftsNotice.jsx';
 
 function money(value) {
   return value === null ? 'Brak danych' : formatMoney(value);
@@ -17,14 +19,21 @@ function ResultGroup({ title, kind, rows, description, showHourly, mode }) {
   const chart = analyticsChartData(kind, rows);
   const moneyLabel = mode === 'estimated_net' ? 'Szacowane netto' : 'Brutto';
   return (
-    <section className="min-w-0 space-y-3 rounded border border-slate-300 bg-white p-3">
+    <section className="min-w-0 space-y-3 card">
       <h3 className="text-lg font-semibold">{title}</h3>
-      <p className="text-sm text-slate-600">{description}</p>
+      {kind === 'platforms' && rows.length > 0 && <div className="platform-shares" aria-label="Udział platform w zarobkach">
+        {rows.map((row) => <div key={row.platform}>
+          <div className="platform-share-label"><PlatformBadge platform={row.platform} /><span className="platform-share-value">{money(row.totalEarnings)}<small>{share(row.earningsShare)}</small></span></div>
+          {row.earningsShare !== null && <div className="platform-share-track" aria-hidden="true"><div className={`platform-share-fill ${row.platform}`} style={{ width: `${Math.min(100, Math.max(0, Number(row.earningsShare)))}%` }} /></div>}
+        </div>)}
+      </div>}
       {rows.some((row) => row.shiftCount > 0)
-        ? <AnalyticsChart title={`${title} — ${moneyLabel.toLowerCase()} w PLN`} type={kind === 'trend' ? 'line' : 'bar'} {...chart} />
-        : <p>Brak danych w wybranym okresie.</p>}
+        ? kind === 'platforms' ? <details><summary>Wykres porównania kwot</summary><AnalyticsChart title={`${title} — ${moneyLabel.toLowerCase()} w PLN`} {...chart} /></details>
+          : <AnalyticsChart title={`${title} — ${moneyLabel.toLowerCase()} w PLN`} type={kind === 'trend' ? 'line' : 'bar'} {...chart} />
+        : <p className="muted text-sm">Brak danych w wybranym okresie.</p>}
+      {description && <p className="muted text-xs">{description}</p>}
       <details>
-        <summary className="cursor-pointer py-2 underline">Pokaż wartości: {title.toLowerCase()}</summary>
+        <summary className="cursor-pointer py-2 underline">Tabela danych<span className="sr-only">: {title.toLowerCase()}</span></summary>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <caption className="sr-only">{title} — wartości liczbowe</caption>
@@ -41,7 +50,7 @@ function ResultGroup({ title, kind, rows, description, showHourly, mode }) {
               </>}
             </tr></thead>
             <tbody>{rows.map((row) => (
-              <tr key={row.key ?? row.platform} className="border-t border-slate-200">
+              <tr key={row.key ?? row.platform} className="border-t border-slate-700">
                 <th scope="row" className="p-2 font-normal">{analyticsLabel(kind, row)}</th>
                 <td className="p-2">{row.shiftCount}</td>
                 <td className="whitespace-nowrap p-2">{row.shiftCount ? money(row.totalEarnings) : 'Brak danych'}</td>
@@ -61,7 +70,7 @@ function ResultGroup({ title, kind, rows, description, showHourly, mode }) {
   );
 }
 
-export default function AdvancedAnalytics({ token, period, mode = 'gross', onSessionExpired }) {
+export default function AdvancedAnalytics({ token, period, mode = 'gross', onSessionExpired, showIncompleteWarning = true }) {
   const [platform, setPlatform] = useState('all');
   const [reload, setReload] = useState(0);
   const [result, setResult] = useState({ key: '', status: 'loading', details: null, message: '' });
@@ -85,45 +94,39 @@ export default function AdvancedAnalytics({ token, period, mode = 'gross', onSes
   const details = current.details;
   return (
     <section className="min-w-0 space-y-3" aria-labelledby="advanced-title">
-      <h2 id="advanced-title" className="text-xl font-semibold">Rozszerzona analityka</h2>
+      <h2 id="advanced-title" className="sr-only">Trendy i porównania</h2>
+      <div className="analytics-chart-filter space-y-2">
       <label htmlFor="analytics-platform" className="block">Platforma na wykresach czasowych</label>
       <select id="analytics-platform" value={platform} onChange={(event) => setPlatform(event.target.value)}
-        className="w-full rounded border border-slate-400 bg-white p-3">
+        className="w-full rounded border border-slate-600 bg-slate-900 p-3">
         <option value="all">Wszystkie platformy</option>
         {platforms.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
       </select>
-      <p className="text-sm text-slate-600">
-        Wykresy korzystają z okresu wybranego powyżej. Cała zmiana należy do dnia, miesiąca i przedziału
-        jej rozpoczęcia w strefie Europe/Warsaw. Grupy rozpoczęcia pokazują wyniki całych zmian,
-        a nie zarobki uzyskane w poszczególnych godzinach.
-        Filtr platformy obejmuje tylko jej zarobki i zamówienia; nie przypisuje jej czasu ani dystansu.
-        Karty podsumowania powyżej zawsze obejmują wszystkie platformy.
-      </p>
+      {platform !== 'all' && <p className="muted text-xs">Dla platformy pokazujemy zarobki i zamówienia, bez czasu i dystansu.</p>}
+      </div>
       {current.status === 'loading' && <p role="status">Wczytywanie wykresów...</p>}
       {current.status === 'error' && <div>
-        <p role="alert" className="text-red-700">{current.message}</p>
+        <p role="alert" className="text-red-400">{current.message}</p>
         <button type="button" className="py-2 underline" onClick={() => setReload((value) => value + 1)}>
           Spróbuj ponownie
         </button>
       </div>}
       {details && <>
-        {details.incompleteShiftCount > 0 && <p role="status">
-          Pominięto zmiany bez uzupełnionych platform: {details.incompleteShiftCount}.
-        </p>}
+        {showIncompleteWarning && <IncompleteShiftsNotice count={details.incompleteShiftCount} />}
         {details.shiftCount === 0 && <p>Brak uzupełnionych zmian dla wybranej platformy i okresu.</p>}
         <ResultGroup title="Dzienny trend zarobków" kind="trend" rows={details.trend} mode={details.mode}
-          description="Suma zarobków w wybranym trybie według dnia rozpoczęcia. Dni bez uzupełnionych zmian nie są pokazane." />
+          description="Według dnia rozpoczęcia zmiany w Polsce." />
+        <ResultGroup title="Zarobki i udział platform" kind="platforms" rows={details.platforms} mode={details.mode}
+          description="Wszystkie platformy, niezależnie od filtra. Ta sama zmiana może obejmować kilka platform." />
         <ResultGroup title="Wyniki według dnia tygodnia" kind="weekdays" rows={details.weekdays} mode={details.mode}
-          showHourly={platform === 'all'} description={platform === 'all'
-            ? 'Wartości z całych zmian; zł/h to iloraz sumy zarobków i czasu pracy.'
-            : 'Zarobki i zamówienia wybranej platformy według dnia rozpoczęcia zmiany.'} />
+          showHourly={platform === 'all'} />
+        <details className="card"><summary>Miesiące i czas rozpoczęcia</summary><div className="space-y-4 pt-3">
         <ResultGroup title="Porównanie miesięcy" kind="months" rows={details.months} mode={details.mode}
           showHourly={platform === 'all'}
-          description="Miesiące kalendarzowe. Bieżący miesiąc i miesiące przycięte filtrem okresu są niepełne; porównuj także liczbę zmian i zł/h, gdy dostępne." />
+          description="Bieżący miesiąc i miesiące na granicach wybranego okresu mogą być niepełne." />
         <ResultGroup title="Czas rozpoczęcia zmiany" kind="startTimes" rows={details.startTimes} mode={details.mode}
-          showHourly={platform === 'all'} description="Przedziały obejmują początek i nie obejmują końca, np. 06:00 należy do 06:00–12:00." />
-        <ResultGroup title="Porównanie platform" kind="platforms" rows={details.platforms} mode={details.mode}
-          description="Wszystkie platformy z wybranego okresu, niezależnie od filtra wykresów czasowych. Udziały liczone względem ich łącznych zarobków i zamówień. Liczba zmian obejmuje każdą zmianę, w której użyto danej platformy." />
+          showHourly={platform === 'all'} description="Wyniki całych zmian według godziny rozpoczęcia w Polsce, nie zarobki w danej godzinie. Start o 06:00 należy do 06:00–12:00." />
+        </div></details>
       </>}
     </section>
   );

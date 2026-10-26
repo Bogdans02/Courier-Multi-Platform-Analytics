@@ -21,10 +21,10 @@ export default function ExpenseForm({ expense, shifts, initialShiftId, onSubmit,
     finally { setPending(false); }
   }
 
-  const inputClass = 'w-full rounded border border-slate-400 bg-white p-3';
-  return <form onSubmit={submit} className="space-y-3 rounded border border-slate-300 bg-white p-4">
-    <h2 className="text-xl font-semibold">{expense ? 'Edytuj koszt' : 'Dodaj koszt'}</h2>
-    {error && <p role="alert" className="text-red-700">{error}</p>}
+  const inputClass = 'w-full rounded border border-slate-600 bg-slate-900 p-3';
+  return <form onSubmit={submit} className="space-y-3 card">
+    {expense && <h2 className="text-xl font-semibold">Edytuj koszt</h2>}
+    {error && <p role="alert" className="text-red-400">{error}</p>}
     <fieldset disabled={pending} className="space-y-3 disabled:opacity-60">
       <legend className="sr-only">Dane kosztu</legend>
       <label htmlFor="expense-category" className="block">Kategoria</label>
@@ -46,8 +46,8 @@ export default function ExpenseForm({ expense, shifts, initialShiftId, onSubmit,
       <label htmlFor="expense-note" className="block">Notatka (opcjonalnie)</label>
       <textarea id="expense-note" name="note" rows={3} value={values.note} onChange={change} className={inputClass} />
       <div className="flex flex-wrap gap-3">
-        <button type="submit" className="rounded bg-slate-800 px-4 py-3 text-white">{pending ? 'Zapisywanie...' : 'Zapisz koszt'}</button>
-        {expense && <button type="button" onClick={onCancel} className="rounded border border-slate-400 px-4 py-3">Anuluj edycję</button>}
+        <button type="submit" className="rounded button-primary">{pending ? 'Zapisywanie...' : 'Zapisz koszt'}</button>
+        <button type="button" onClick={onCancel} className="rounded border border-slate-600 px-4 py-3">{expense ? 'Anuluj edycję' : 'Anuluj'}</button>
       </div>
     </fieldset>
   </form>;

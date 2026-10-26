@@ -1,21 +1,20 @@
 import { useEffect, useState } from 'react';
-import { getHealth } from '../services/api/health.js';
-import { getCurrentUser } from '../services/api/auth.js';
 import { Link } from 'react-router';
 import { getSummary } from '../services/api/analytics.js';
-import DashboardSummary from '../components/DashboardSummary.jsx';
+import DashboardSummary, { DashboardDetails } from '../components/DashboardSummary.jsx';
 import AdvancedAnalytics from '../components/AdvancedAnalytics.jsx';
 import { formatRate } from '../utils/netSettings.js';
+import useEarningsMode from '../hooks/useEarningsMode.js';
+import { Info } from 'lucide-react';
 
 export default function Dashboard({ session, onSessionExpired }) {
-  const [connection, setConnection] = useState({ status: 'loading', message: '' });
-  const [account, setAccount] = useState({ status: 'loading', user: null, message: '' });
-  const [period, setPeriod] = useState('all');
-  const [mode, setMode] = useState('gross');
+  const [period, setPeriod] = useState('week');
+  const { mode, setMode, settingsError } = useEarningsMode(session.token, onSessionExpired);
   const [statistics, setStatistics] = useState({ status: 'loading', summary: null, message: '' });
   const [reload, setReload] = useState(0);
 
   useEffect(() => {
+    if (mode === null) return;
     const controller = new AbortController();
     getSummary(session.token, period, controller.signal, mode)
       .then(({ summary }) => {
@@ -29,85 +28,47 @@ export default function Dashboard({ session, onSessionExpired }) {
     return () => controller.abort();
   }, [session.token, period, mode, reload, onSessionExpired]);
 
-  useEffect(() => {
-    const controller = new AbortController();
-
-    getHealth(controller.signal)
-      .then(() => {
-        setConnection({ status: 'success', message: 'Połączenie z backendem działa.' });
-      })
-      .catch((error) => {
-        if (!controller.signal.aborted) {
-          setConnection({ status: 'error', message: error.message });
-        }
-      });
-
-    return () => controller.abort();
-  }, []);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    getCurrentUser(session.token, controller.signal)
-      .then(({ user }) => setAccount({ status: 'success', user, message: '' }))
-      .catch((error) => {
-        if (controller.signal.aborted) return;
-        if (error.status === 401) onSessionExpired();
-        else setAccount({ status: 'error', user: null, message: error.message });
-      });
-    return () => controller.abort();
-  }, [session.token, onSessionExpired]);
-
   return (
     <>
-      <h1 className="text-2xl font-semibold">Dashboard</h1>
-      <p><Link to="/shifts/active" className="underline">Rozpocznij lub zakończ zmianę</Link></p>
-      <p><Link to="/history" className="underline">Historia zmian</Link></p>
-      <p><Link to="/expenses" className="underline">Dodaj lub przeglądaj koszty</Link></p>
-      <p><Link to="/settings" className="underline">Ustawienia szacowanego netto</Link></p>
-      {account.status === 'loading' && <p role="status">Sprawdzanie sesji...</p>}
-      {account.user && <p>Zalogowano jako: <strong>{account.user.email}</strong></p>}
-      {account.status === 'error' && <p role="alert" className="text-red-700">{account.message}</p>}
-      <label className="block" htmlFor="earnings-mode">Wartości finansowe</label>
-      <select id="earnings-mode" value={mode} className="w-full rounded border border-slate-400 bg-white p-3"
-        onChange={(event) => {
+      <div className="page-heading"><h1>Analiza</h1></div>
+      <div className="analytics-filters space-y-3">
+      <div className="segmented period-tabs" role="group" aria-label="Okres statystyk">
+        {[['week', 'Tydzień'], ['month', 'Miesiąc'], ['three_months', '3 mies.'], ['all', 'Całość']].map(([value, label]) => <button key={value} type="button" aria-pressed={period === value} onClick={() => {
+          if (period === value) return;
           setStatistics({ status: 'loading', summary: null, message: '' });
-          setMode(event.target.value);
-        }}>
-        <option value="gross">Brutto</option>
-        <option value="estimated_net">Szacowane netto</option>
-      </select>
-      {mode === 'estimated_net' && <p className="text-sm text-slate-600">
-        Szacowane netto korzysta z aktualnie zapisanego profilu dla całego wybranego okresu.
-        To uproszczony szacunek, a nie pełne rozliczenie podatkowe.
-        {statistics.summary && ` Szacowana stawka potrąceń: ${formatRate(statistics.summary.deductionRate)}.`}
-      </p>}
-      <label className="block" htmlFor="summary-period">Okres statystyk</label>
-      <select id="summary-period" value={period} className="w-full rounded border border-slate-400 bg-white p-3"
-        onChange={(event) => {
+          setPeriod(value);
+        }}>{label}</button>)}
+      </div>
+      {mode !== null && <div className="segmented" role="group" aria-label="Wartości finansowe">
+        {[['estimated_net', 'Szacowane netto'], ['gross', 'Brutto']].map(([value, label]) => <button key={value} type="button" aria-pressed={mode === value} onClick={() => {
+          if (mode === value) return;
           setStatistics({ status: 'loading', summary: null, message: '' });
-          setPeriod(event.target.value);
-        }}>
-        <option value="week">Tydzień — ostatnie 7 dni</option>
-        <option value="month">Miesiąc — ostatnie 30 dni</option>
-        <option value="three_months">3 miesiące — ostatnie 90 dni</option>
-        <option value="all">Cały okres</option>
-      </select>
+          setMode(value);
+        }}>{label}</button>)}
+      </div>}
+      {settingsError && <p role="status" className="text-sm text-amber-300">Nie udało się odczytać ustawień netto. Początkowo wybrano brutto. Możesz zmienić tryb przełącznikiem lub otworzyć ekran ponownie.</p>}
+      {mode === 'estimated_net' && statistics.summary?.deductionRate != null && <div className="card estimated-net-note flex items-start gap-3">
+        <Info size={20} strokeWidth={1.8} className="mt-0.5 shrink-0 text-sky-300" aria-hidden="true" />
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-sky-300">Szacowane netto · {formatRate(statistics.summary.deductionRate)}</p>
+          <p className="muted mt-1 text-xs">Szacunek na podstawie aktualnego profilu. Nie stanowi rozliczenia podatkowego.</p>
+          <Link to="/settings" className="text-link inline-flex min-h-8 items-center">Ustawienia szacowanego netto →</Link>
+        </div>
+      </div>}
+      </div>
       {statistics.status === 'loading' && <p role="status">Wczytywanie statystyk...</p>}
       {statistics.status === 'error' && <div>
-        <p role="alert" className="text-red-700">{statistics.message}</p>
+        <p role="alert" className="text-red-400">{statistics.message}</p>
+        {mode === 'estimated_net' && <Link to="/settings" className="text-link">Ustaw profil szacowanego netto</Link>}
         <button type="button" className="py-2 underline" onClick={() => {
           setStatistics({ status: 'loading', summary: null, message: '' });
           setReload((value) => value + 1);
         }}>Spróbuj ponownie</button>
       </div>}
       {statistics.status === 'success' && <DashboardSummary summary={statistics.summary} />}
-      <AdvancedAnalytics token={session.token} period={period} mode={mode} onSessionExpired={onSessionExpired} />
-      <p>Połączenie z backendem:</p>
-      {connection.status === 'loading' && <p role="status">Sprawdzanie połączenia...</p>}
-      {connection.status === 'success' && <p role="status">{connection.message}</p>}
-      {connection.status === 'error' && (
-        <p role="alert" className="text-red-700">{connection.message}</p>
-      )}
+      {mode !== null && <AdvancedAnalytics token={session.token} period={period} mode={mode} onSessionExpired={onSessionExpired}
+        showIncompleteWarning={statistics.status !== 'success'} />}
+      {statistics.status === 'success' && <DashboardDetails summary={statistics.summary} />}
     </>
   );
 }

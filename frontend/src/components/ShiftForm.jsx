@@ -52,34 +52,34 @@ export default function ShiftForm({ shift, onSubmit, onCancel }) {
   }
 
   return (
-    <form onSubmit={submit} className="max-w-md space-y-4" aria-busy={pending}>
+    <form onSubmit={submit} className="space-y-4" aria-busy={pending}>
       <fieldset disabled={pending} className="space-y-4">
         <div>
           <label htmlFor="startedAt" className="mb-1 block font-medium">Rozpoczęcie</label>
           <input id="startedAt" name="startedAt" type="datetime-local" step="0.001" required
             value={values.startedAt} onChange={change}
-            className="w-full min-w-0 rounded border border-slate-400 bg-white px-3 py-3" />
+            className="w-full min-w-0 rounded border border-slate-600 bg-slate-900 px-3 py-3" />
         </div>
         <div>
           <label htmlFor="endedAt" className="mb-1 block font-medium">Zakończenie</label>
           <input id="endedAt" name="endedAt" type="datetime-local" step="0.001" required
             value={values.endedAt} onChange={change}
-            className="w-full min-w-0 rounded border border-slate-400 bg-white px-3 py-3" />
+            className="w-full min-w-0 rounded border border-slate-600 bg-slate-900 px-3 py-3" />
         </div>
         <div>
           <label htmlFor="distanceKm" className="mb-1 block font-medium">Dystans (km, opcjonalnie)</label>
           <input id="distanceKm" name="distanceKm" type="number" inputMode="decimal" min="0" max="99999999.99" step="0.01"
             value={values.distanceKm} onChange={change}
-            className="w-full rounded border border-slate-400 bg-white px-3 py-3" />
+            className="w-full rounded border border-slate-600 bg-slate-900 px-3 py-3" />
         </div>
         {values.platformEntries.map((entry, index) => (
-          <fieldset key={index} className="space-y-3 rounded border border-slate-300 p-3">
+          <fieldset key={index} className="space-y-3 rounded border border-slate-700 p-3">
             <legend className="px-1 font-semibold">Platforma {index + 1}</legend>
             <div>
               <label htmlFor={`platform-${index}`} className="mb-1 block font-medium">Platforma</label>
               <select id={`platform-${index}`} value={entry.platform} required
                 onChange={(event) => changeEntry(index, 'platform', event.target.value)}
-                className="w-full rounded border border-slate-400 bg-white px-3 py-3">
+                className="w-full rounded border border-slate-600 bg-slate-900 px-3 py-3">
                 {platforms.map(({ value, label }) => <option key={value} value={value}
                   disabled={values.platformEntries.some((other, position) => position !== index && other.platform === value)}>{label}</option>)}
               </select>
@@ -88,30 +88,30 @@ export default function ShiftForm({ shift, onSubmit, onCancel }) {
               <label htmlFor={`earnings-${index}`} className="mb-1 block font-medium">Zarobek brutto (PLN)</label>
               <input id={`earnings-${index}`} type="number" inputMode="decimal" min="0" max="9999999999.99" step="0.01" required
                 value={entry.earningsGross} onChange={(event) => changeEntry(index, 'earningsGross', event.target.value)}
-                className="w-full rounded border border-slate-400 bg-white px-3 py-3" />
+                className="w-full rounded border border-slate-600 bg-slate-900 px-3 py-3" />
             </div>
             <div>
               <label htmlFor={`orders-${index}`} className="mb-1 block font-medium">Liczba zamówień</label>
               <input id={`orders-${index}`} type="number" inputMode="numeric" min="0" max="2147483647" step="1" required
                 value={entry.ordersCount} onChange={(event) => changeEntry(index, 'ordersCount', event.target.value)}
-                className="w-full rounded border border-slate-400 bg-white px-3 py-3" />
+                className="w-full rounded border border-slate-600 bg-slate-900 px-3 py-3" />
             </div>
             {values.platformEntries.length > 1 && <button type="button" onClick={() => removeEntry(index)}
-              className="py-2 text-red-700 underline">Usuń platformę {index + 1}</button>}
+              className="py-2 text-red-400 underline">Usuń platformę {index + 1}</button>}
           </fieldset>
         ))}
         <button type="button" disabled={values.platformEntries.length === platforms.length} onClick={addEntry}
-          className="w-full rounded border border-slate-400 px-4 py-3 disabled:opacity-60">+ Dodaj kolejną platformę</button>
-        <div aria-live="polite" className="rounded bg-slate-100 p-3">
+          className="w-full rounded border border-slate-600 px-4 py-3 disabled:opacity-60">+ Dodaj kolejną platformę</button>
+        <div aria-live="polite" className="rounded bg-slate-800 p-3">
           <p>Łączny zarobek brutto: <strong>{formatMoney(totals.totalEarnings)}</strong></p>
           <p>Łączna liczba zamówień: <strong>{totals.totalOrders}</strong></p>
         </div>
-        <button type="submit" className="w-full rounded bg-slate-800 px-4 py-3 font-semibold text-white disabled:opacity-60">
+        <button type="submit" className="w-full rounded button-primary disabled:opacity-60">
           {pending ? 'Zapisywanie...' : 'Zapisz zmianę'}
         </button>
-        <button type="button" onClick={onCancel} className="w-full rounded border border-slate-400 px-4 py-3">Anuluj</button>
+        <button type="button" onClick={onCancel} className="w-full rounded border border-slate-600 px-4 py-3">Anuluj</button>
       </fieldset>
-      {error && <p role="alert" className="text-red-700">{error}</p>}
+      {error && <p role="alert" className="text-red-400">{error}</p>}
     </form>
   );
 }

@@ -13,6 +13,11 @@ export function formatDistance(value) {
   return value === null ? 'Nie podano' : `${Number(value).toLocaleString('pl-PL')} km`;
 }
 
+export function formatCompactDuration(seconds) {
+  const minutes = Math.max(0, Math.floor(seconds / 60));
+  return `${Math.floor(minutes / 60)} godz. ${minutes % 60} min`;
+}
+
 export function formatMoney(value) {
   return Number(value).toLocaleString('pl-PL', { style: 'currency', currency: 'PLN' });
 }

@@ -1,4 +1,6 @@
 import { formatMoney } from '../utils/shiftFormat.js';
+import { ChartNoAxesColumnIncreasing, Clock, Package, Wallet } from 'lucide-react';
+import IncompleteShiftsNotice from './IncompleteShiftsNotice.jsx';
 
 function number(value) {
   return value === null ? 'Brak danych' : Number(value).toLocaleString('pl-PL', { maximumFractionDigits: 2 });
@@ -8,43 +10,50 @@ function money(value) {
   return value === null ? 'Brak danych' : formatMoney(value);
 }
 
-export default function DashboardSummary({ summary }) {
-  const metrics = [
-    [summary.mode === 'estimated_net' ? 'Łączny zarobek — szacowane netto' : 'Łączny zarobek brutto', money(summary.totalEarnings)],
+function summaryMetrics(summary) {
+  return [
+    [summary.mode === 'estimated_net' ? 'Zarobek · szac. netto' : 'Zarobek brutto', money(summary.totalEarnings), Wallet],
+    ['Zamówienia', number(summary.totalOrders), Package],
+    ['Czas pracy', `${number(summary.totalHours)} godz.`, Clock],
+    ['Zarobek / h', money(summary.earningsPerHour), ChartNoAxesColumnIncreasing],
     ['Łączne koszty w okresie', money(summary.totalExpenses)],
     ['Liczba zmian', number(summary.shiftCount)],
-    ['Łączny czas pracy', `${number(summary.totalHours)} godz.`],
     ['Łączny dystans', summary.distanceShiftCount ? `${number(summary.totalDistance)} km` : 'Brak danych'],
-    ['Liczba zamówień', number(summary.totalOrders)],
     ['Średni zarobek na zmianę', money(summary.earningsPerShift)],
-    ['Zarobek na godzinę (zł/h)', money(summary.earningsPerHour)],
     ['Zarobek na kilometr (zł/km)', money(summary.earningsPerKm)],
     ['Zamówienia na godzinę', number(summary.ordersPerHour)],
     ['Średni zarobek na zamówienie', money(summary.earningsPerOrder)],
   ];
+}
+
+export default function DashboardSummary({ summary }) {
+  const metrics = summaryMetrics(summary);
 
   return (
     <>
-      {summary.incompleteShiftCount > 0 && <p role="status">
-        Zmiany oczekujące na uzupełnienie platform: {summary.incompleteShiftCount}. Uzupełnij je w historii, aby uwzględnić je w statystykach.
-      </p>}
-      {summary.shiftCount === 0 && <p>Brak zakończonych zmian z uzupełnionymi platformami w wybranym okresie.</p>}
-      <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {metrics.map(([label, value]) => (
-          <div key={label} className="rounded border border-slate-300 bg-white p-4">
-            <dt className="text-sm text-slate-600">{label}</dt>
-            <dd className="mt-1 text-xl font-semibold">{value}</dd>
+      <IncompleteShiftsNotice count={summary.incompleteShiftCount} />
+      {summary.shiftCount === 0 && <p>Brak uzupełnionych zmian w wybranym okresie.</p>}
+      <dl className="metric-grid">
+        {metrics.slice(0, 4).map(([label, value, MetricIcon]) => (
+          <div key={label} className="card metric-card">
+            <dt><span>{label}</span><span className="metric-icon"><MetricIcon size={22} strokeWidth={1.8} aria-hidden="true" /></span></dt>
+            <dd>{value}</dd>
           </div>
         ))}
       </dl>
-      <p className="text-sm text-slate-600">
-        Statystyki obejmują zakończone zmiany z uzupełnionymi platformami, według czasu rozpoczęcia.
-        Dystans podano dla {summary.distanceShiftCount} z {summary.shiftCount} zmian.
-        Zarobek na kilometr uwzględnia tylko zarobki i dystans z tych samych zmian.
-        Brak danych oznacza brak podstaw do obliczenia wskaźnika.
-        Koszty ({summary.expenseCount}) są sumowane według ich daty, włącznie z datami granicznymi okresu
-        w strefie Europe/Warsaw, także bez powiązania ze zmianą. Kwota kosztów jest taka sama w obu trybach finansowych.
-      </p>
     </>
   );
+}
+
+export function DashboardDetails({ summary }) {
+  const metrics = summaryMetrics(summary);
+  return <>
+      <details className="card secondary-metrics"><summary>Więcej wyników</summary>
+        <dl className="metric-grid">{metrics.slice(4).map(([label, value]) => <div key={label} className="metric-card">
+          <dt className="muted text-xs">{label}</dt><dd>{value}</dd>
+        </div>)}</dl>
+        <p className="muted text-xs">Dystans: {summary.distanceShiftCount} z {summary.shiftCount} zmian. Zł/km dotyczy tylko zmian z podanym dystansem.</p>
+        <p className="muted mt-2 text-xs">Koszty: według daty w Polsce, z pełnymi dniami granicznymi, również bez powiązanej zmiany. Nie pomniejszają zarobków; kwota wspólna dla brutto i netto.</p>
+      </details>
+    </>;
 }

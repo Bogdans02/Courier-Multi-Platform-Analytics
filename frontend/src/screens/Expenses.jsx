@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useLocation } from 'react-router';
+import { Link, useLocation, useNavigate } from 'react-router';
 import { createExpense, getExpenses, updateExpense, deleteExpense } from '../services/api/expenses.js';
 import { getShifts, getActiveShift } from '../services/api/shifts.js';
 import { expenseCategories, validateExpenseFilters } from '../utils/expenseValidation.js';
@@ -8,8 +8,9 @@ import ExpenseForm from '../components/ExpenseForm.jsx';
 
 const emptyFilters = { from: '', to: '', category: '' };
 
-export default function Expenses({ session, onSessionExpired }) {
+export default function Expenses({ session, onSessionExpired, adding = false }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const [filters, setFilters] = useState(emptyFilters);
   const [draftFilters, setDraftFilters] = useState(emptyFilters);
   const [filterError, setFilterError] = useState('');
@@ -18,7 +19,7 @@ export default function Expenses({ session, onSessionExpired }) {
   const [editing, setEditing] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [pending, setPending] = useState(false);
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState(location.state?.message ?? '');
   const [error, setError] = useState('');
   const key = `${JSON.stringify(filters)}/${reload}`;
   const current = result.key === key ? result : { status: 'loading' };
@@ -39,11 +40,12 @@ export default function Expenses({ session, onSessionExpired }) {
 
   async function save(body) {
     try {
-      if (editing) await updateExpense(session.token, editing.id, body);
+      if (!adding && editing) await updateExpense(session.token, editing.id, body);
       else await createExpense(session.token, body);
       setEditing(null);
       setMessage('Koszt został zapisany.');
       setReload((value) => value + 1);
+      if (adding) navigate('/expenses', { state: { message: 'Koszt został zapisany.' } });
     } catch (error) {
       if (error.status === 401) onSessionExpired();
       throw error;
@@ -67,18 +69,20 @@ export default function Expenses({ session, onSessionExpired }) {
   }
 
   return <>
-    <h1 className="text-2xl font-semibold">Koszty</h1>
+    <div className="page-heading"><h1>{adding ? 'Nowy koszt' : 'Koszty'}</h1></div>
     {message && <p role="status">{message}</p>}
-    {error && <p role="alert" className="text-red-700">{error}</p>}
+    {error && <p role="alert" className="text-red-400">{error}</p>}
     {current.status === 'loading' && <p role="status">Wczytywanie kosztów i zmian...</p>}
     {current.status === 'error' && <div>
-      <p role="alert" className="text-red-700">{current.message}</p>
+      <p role="alert" className="text-red-400">{current.message}</p>
       <button type="button" className="py-2 underline" onClick={() => setReload((value) => value + 1)}>Spróbuj ponownie</button>
     </div>}
-    {current.status === 'success' && !editing && <ExpenseForm key={`new/${reload}`}
+    {adding && current.status === 'success' && <ExpenseForm key={`new/${reload}`}
       shifts={current.shifts} initialShiftId={location.state?.shiftId}
-      onSubmit={save} onCancel={() => setEditing(null)} />}
-    <h2 className="text-xl font-semibold">Historia kosztów</h2>
+      onSubmit={save} onCancel={() => navigate('/expenses')} />}
+    {!adding && <>
+    <Link to="/expenses/new" className="button-primary">+ Dodaj koszt</Link>
+    <details className="card"><summary>Filtruj koszty</summary>
     <form className="space-y-3" onSubmit={(event) => {
       event.preventDefault();
       try {
@@ -90,24 +94,26 @@ export default function Expenses({ session, onSessionExpired }) {
       catch (error) { setFilterError(error.message); }
     }}>
       <label htmlFor="expense-from" className="block">Data od</label>
-      <input id="expense-from" type="date" value={draftFilters.from} className="w-full rounded border border-slate-400 p-3"
+      <input id="expense-from" type="date" value={draftFilters.from} className="w-full rounded border border-slate-600 p-3"
         onChange={(event) => setDraftFilters({ ...draftFilters, from: event.target.value })} />
       <label htmlFor="expense-to" className="block">Data do</label>
-      <input id="expense-to" type="date" value={draftFilters.to} className="w-full rounded border border-slate-400 p-3"
+      <input id="expense-to" type="date" value={draftFilters.to} className="w-full rounded border border-slate-600 p-3"
         onChange={(event) => setDraftFilters({ ...draftFilters, to: event.target.value })} />
-      <label htmlFor="expense-filter-category" className="block">Kategoria w historii</label>
-      <select id="expense-filter-category" value={draftFilters.category} className="w-full rounded border border-slate-400 bg-white p-3"
+      <label htmlFor="expense-filter-category" className="block">Kategoria</label>
+      <select id="expense-filter-category" value={draftFilters.category} className="w-full rounded border border-slate-600 bg-slate-900 p-3"
         onChange={(event) => setDraftFilters({ ...draftFilters, category: event.target.value })}>
         <option value="">Wszystkie kategorie</option>
         {expenseCategories.map(({ value, label }) => <option value={value} key={value}>{label}</option>)}
       </select>
-      {filterError && <p role="alert" className="text-red-700">{filterError}</p>}
-      <button type="submit" className="rounded border border-slate-400 px-4 py-3">Zastosuj filtry</button>
+      {filterError && <p role="alert" className="text-red-400">{filterError}</p>}
+      <button type="submit" className="rounded border border-slate-600 px-4 py-3">Zastosuj filtry</button>
     </form>
+    </details>
+    <h2 className="text-xl font-semibold">Historia kosztów</h2>
     {current.status === 'success' && (current.expenses.length === 0
-      ? <p>Brak kosztów dla wybranych filtrów.</p>
+      ? <p className="empty-state">Brak kosztów dla wybranych filtrów.</p>
       : <ul className="space-y-3">{current.expenses.map((expense) => <li key={expense.id}
-        className="space-y-2 rounded border border-slate-300 bg-white p-4">
+        className="space-y-2 card">
         <p className="font-semibold">{expenseCategories.find(({ value }) => value === expense.category)?.label ?? expense.category}: {formatMoney(expense.amount)}</p>
         <p>Data: {expense.expenseDate.split('-').reverse().join('.')}</p>
         {expense.note && <p className="whitespace-pre-wrap break-words">{expense.note}</p>}
@@ -121,11 +127,12 @@ export default function Expenses({ session, onSessionExpired }) {
           <button type="button" disabled={pending} onClick={() => setConfirmDelete(null)} className="py-3 underline">Anuluj usuwanie</button>
         </div> : <div className="flex flex-wrap gap-3">
           <button type="button" disabled={pending} onClick={() => { setEditing(expense); setConfirmDelete(null); setMessage(''); setError(''); }}
-            className="rounded border border-slate-400 px-4 py-3">Edytuj koszt</button>
+            className="rounded border border-slate-600 px-4 py-3">Edytuj koszt</button>
           <button type="button" disabled={pending} onClick={() => { setConfirmDelete(expense.id); setError(''); }}
-            className="rounded border border-red-700 px-4 py-3 text-red-700">Usuń koszt</button>
+            className="rounded border border-red-400 px-4 py-3 text-red-400">Usuń koszt</button>
         </div>}
       </li>)}</ul>)}
-    <p><Link to="/dashboard" className="underline">Przejdź do podsumowania</Link></p>
+    </>}
+    <p><Link to={adding ? '/expenses' : '/more'} className="text-link">{adding ? 'Wróć do kosztów' : 'Wróć do Więcej'}</Link></p>
   </>;
 }

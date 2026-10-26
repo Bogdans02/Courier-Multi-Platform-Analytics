@@ -12,7 +12,7 @@ export default function Register() {
 
   return (
     <>
-      <h1 className="text-2xl font-semibold">Rejestracja</h1>
+      <div className="page-heading"><h1>Utwórz konto</h1></div>
       <AuthForm mode="register" onSubmit={submit} />
       <p>Masz już konto? <Link to="/login" className="underline">Zaloguj się</Link></p>
     </>

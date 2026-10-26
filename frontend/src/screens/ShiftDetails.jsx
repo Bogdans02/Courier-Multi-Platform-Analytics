@@ -57,33 +57,33 @@ export default function ShiftDetails({ session, onSessionExpired }) {
     <>
       <h1 className="text-2xl font-semibold">{location.state?.summary ? 'Podsumowanie zmiany' : 'Szczegóły zmiany'}</h1>
       {loading && <p role="status">Wczytywanie zmiany...</p>}
-      {error && <div><p role="alert" className="text-red-700">{error}</p>
+      {error && <div><p role="alert" className="text-red-400">{error}</p>
         {!shift && <button type="button" onClick={() => { setLoading(true); setReload((value) => value + 1); }} className="py-2 underline">Spróbuj ponownie</button>}
       </div>}
       {!loading && shift && (
         <>
-          <dl className="space-y-2 rounded border border-slate-300 bg-white p-4">
+          <dl className="space-y-2 card">
             <div><dt className="font-medium">Rozpoczęcie</dt><dd>{formatDateTime(shift.startedAt)}</dd></div>
             <div><dt className="font-medium">Zakończenie</dt><dd>{shift.endedAt ? formatDateTime(shift.endedAt) : 'Zmiana trwa'}</dd></div>
             <div><dt className="font-medium">Czas pracy</dt><dd>{shift.durationSeconds === null ? 'Zmiana trwa' : formatDuration(shift.durationSeconds)}</dd></div>
             <div><dt className="font-medium">Dystans</dt><dd>{formatDistance(shift.distanceKm)}</dd></div>
           </dl>
           {shift.status === 'completed' && <ShiftPlatformSummary shift={shift} />}
-          <p><Link to="/expenses" state={{ shiftId: shift.id }} className="underline">Dodaj koszt do tej zmiany</Link></p>
+          <p><Link to="/expenses/new" state={{ shiftId: shift.id }} className="text-link">Dodaj koszt do tej zmiany</Link></p>
           {editing && shift.status === 'completed' ? (
             <ShiftForm key={shift.id} shift={shift} onSubmit={save} onCancel={() => setEditing(false)} />
           ) : (
             <div className="flex flex-wrap gap-3">
-              {shift.status === 'completed' && <button type="button" disabled={pending || confirmDelete} onClick={() => setEditing(true)} className="rounded border border-slate-400 px-4 py-3">Edytuj zmianę</button>}
+              {shift.status === 'completed' && <button type="button" disabled={pending || confirmDelete} onClick={() => setEditing(true)} className="rounded border border-slate-600 px-4 py-3">Edytuj zmianę</button>}
               {shift.status === 'active' && <Link to="/shifts/active" className="py-3 underline">Przejdź do aktywnej zmiany</Link>}
-              {!confirmDelete && <button type="button" onClick={() => setConfirmDelete(true)} className="rounded border border-red-700 px-4 py-3 text-red-700">Usuń zmianę</button>}
+              {!confirmDelete && <button type="button" onClick={() => setConfirmDelete(true)} className="rounded border border-red-400 px-4 py-3 text-red-400">Usuń zmianę</button>}
             </div>
           )}
-          {confirmDelete && <div className="space-y-3 rounded border border-red-700 p-4">
+          {confirmDelete && <div className="space-y-3 rounded border border-red-400 p-4">
             <p>Czy na pewno chcesz usunąć tę zmianę? Tej operacji nie można cofnąć.</p>
             <div className="flex flex-wrap gap-3">
               <button type="button" disabled={pending} onClick={remove} className="rounded bg-red-700 px-4 py-3 text-white disabled:opacity-60">{pending ? 'Usuwanie...' : 'Potwierdź usunięcie'}</button>
-              <button type="button" disabled={pending} onClick={() => setConfirmDelete(false)} className="rounded border border-slate-400 px-4 py-3">Anuluj usuwanie</button>
+              <button type="button" disabled={pending} onClick={() => setConfirmDelete(false)} className="rounded border border-slate-600 px-4 py-3">Anuluj usuwanie</button>
             </div>
           </div>}
         </>

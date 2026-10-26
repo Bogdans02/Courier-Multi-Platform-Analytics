@@ -24,13 +24,13 @@ export default function AuthForm({ mode, onSubmit }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="max-w-md space-y-4" aria-busy={pending}>
+    <form onSubmit={handleSubmit} className="space-y-4" aria-busy={pending}>
       <fieldset disabled={pending} className="space-y-4">
         <div>
           <label htmlFor="email" className="mb-1 block font-medium">E-mail</label>
           <input id="email" name="email" type="email" autoComplete="email" required maxLength={254}
             value={email} onChange={(event) => setEmail(event.target.value)}
-            className="w-full rounded border border-slate-400 bg-white px-3 py-3" />
+            className="w-full rounded border border-slate-600 bg-slate-900 px-3 py-3" />
         </div>
         <div>
           <label htmlFor="password" className="mb-1 block font-medium">Hasło</label>
@@ -38,14 +38,14 @@ export default function AuthForm({ mode, onSubmit }) {
             autoComplete={isRegister ? 'new-password' : 'current-password'}
             aria-describedby={isRegister ? 'password-hint' : undefined}
             value={password} onChange={(event) => setPassword(event.target.value)}
-            className="w-full rounded border border-slate-400 bg-white px-3 py-3" />
-          {isRegister && <p id="password-hint" className="mt-1 text-sm text-slate-600">Minimum 8 znaków.</p>}
+            className="w-full rounded border border-slate-600 bg-slate-900 px-3 py-3" />
+          {isRegister && <p id="password-hint" className="mt-1 text-sm text-slate-400">Minimum 8 znaków.</p>}
         </div>
-        <button type="submit" className="w-full rounded bg-slate-800 px-4 py-3 font-semibold text-white disabled:opacity-60">
+        <button type="submit" className="w-full rounded button-primary disabled:opacity-60">
           {pending ? 'Proszę czekać...' : isRegister ? 'Utwórz konto' : 'Zaloguj się'}
         </button>
       </fieldset>
-      {error && <p role="alert" className="text-red-700">{error}</p>}
+      {error && <p role="alert" className="text-red-400">{error}</p>}
     </form>
   );
 }
