@@ -13,3 +13,6 @@ coverage/
 Thumbs.db
 
 *.log
+
+# Local demo data and backups may contain account history.
+backend/.demo-data/
