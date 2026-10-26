@@ -2,6 +2,31 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createAnalyticsService } from '../src/services/analyticsService.js';
 
+test('current week begins at Warsaw Monday midnight for both analytics endpoints, including DST and year boundaries', async () => {
+  for (const [instant, expected] of [
+    ['2026-10-25T15:00:00Z', '2026-10-18T22:00:00.000Z'],
+    ['2026-10-25T23:30:00Z', '2026-10-25T23:00:00.000Z'],
+    ['2026-03-29T12:00:00Z', '2026-03-22T23:00:00.000Z'],
+    ['2026-03-29T22:30:00Z', '2026-03-29T22:00:00.000Z'],
+    ['2026-01-01T12:00:00Z', '2025-12-28T23:00:00.000Z'],
+  ]) {
+    const calls = [];
+    const now = new Date(instant);
+    const service = createAnalyticsService({
+      async summary(...args) { calls.push(args); return { totalHours: '0', totalOrders: '0' }; },
+      async details(...args) { calls.push(args); return { weekdays: [], startTimes: [] }; },
+    }, () => now, { async get() { return { netProfile: 'custom', deductionRate: '0.20000' }; } });
+    const summary = await service.summary(42, 'current_week', 'estimated_net');
+    const details = await service.details(42, 'current_week', 'all', 'estimated_net');
+    assert.equal(summary.from, expected);
+    assert.equal(details.from, expected);
+    assert.equal(summary.to, now.toISOString());
+    assert.equal(details.to, now.toISOString());
+    assert.deepEqual(calls, [[42, new Date(expected), now, '0.20000'],
+      [42, new Date(expected), now, 'all', '0.20000']]);
+  }
+});
+
 test('summary validates the period and calculates rolling UTC bounds before querying', async () => {
   const now = new Date('2026-10-12T12:00:00.000Z');
   const calls = [];

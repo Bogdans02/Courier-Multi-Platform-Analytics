@@ -3,6 +3,17 @@ import { httpError } from '../utils/httpError.js';
 
 function periodBounds(value, to) {
   const period = validateSummaryPeriod(value);
+  if (period === 'current_week') {
+    const date = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Warsaw',
+      year: 'numeric', month: '2-digit', day: '2-digit' }).format(to);
+    const monday = new Date(`${date}T00:00:00Z`);
+    monday.setUTCDate(monday.getUTCDate() - (monday.getUTCDay() + 6) % 7);
+    // Monday has no DST transition in Warsaw. Convert its local midnight to UTC.
+    const offsetHours = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Warsaw',
+      hour: '2-digit', hourCycle: 'h23' }).format(monday));
+    monday.setUTCHours(-offsetHours);
+    return { period, from: monday, to };
+  }
   const days = { week: 7, month: 30, three_months: 90 }[period];
   return { period, from: days ? new Date(to.getTime() - days * 86400000) : null, to };
 }

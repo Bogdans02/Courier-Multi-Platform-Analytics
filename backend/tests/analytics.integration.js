@@ -296,6 +296,26 @@ test('all four periods filter by start time and reject invalid or repeated perio
   assert.equal((await service.summary(owner, 'week')).shiftCount, 3);
 });
 
+test('current week includes the Warsaw Monday boundary and Sunday, with exact net aggregation', async () => {
+  const now = new Date('2026-10-25T15:00:00Z');
+  await seed({ startedAt: new Date('2026-10-18T21:59:59Z'), entries: [['glovo', '999.00', 1]] });
+  await seed({ startedAt: new Date('2026-10-18T22:00:00Z'), entries: [['glovo', '100.00', 1]] });
+  await seed({ startedAt: new Date('2026-10-25T10:00:00Z'), entries: [['wolt', '50.00', 1]] });
+  await seed({ startedAt: new Date('2026-10-25T16:00:00Z'), entries: [['glovo', '999.00', 1]] });
+  const service = createAnalyticsService(createAnalyticsRepository(pool), () => now,
+    { async get() { return { netProfile: 'custom', deductionRate: '0.20000' }; } });
+  for (const [mode, amount] of [['gross', '150.00'], ['estimated_net', '120.00']]) {
+    const summary = await service.summary(owner, 'current_week', mode);
+    const details = await service.details(owner, 'current_week', 'all', mode);
+    assert.equal(summary.shiftCount, 2);
+    assert.equal(summary.totalEarnings, amount);
+    assert.equal(details.shiftCount, 2);
+    assert.deepEqual(details.trend.map(row => row.key), ['2026-10-19', '2026-10-25']);
+  }
+  assert.equal((await request('/analytics/summary?period=current_week')).status, 200);
+  assert.equal((await request('/analytics/details?period=current_week')).status, 200);
+});
+
 test('summary recalculates after editing entries, time, distance and period, and after deleting a shift', async () => {
   const id = await seed({ entries: [['glovo', '200.00', 10], ['bolt_food', '100.00', 5]] });
   assert.equal((await request()).body.summary.totalEarnings, '300.00');

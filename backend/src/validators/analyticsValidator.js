@@ -8,7 +8,7 @@ export function validateEarningsMode(value = 'gross') {
 }
 
 export function validateSummaryPeriod(value = 'all') {
-  if (!['week', 'month', 'three_months', 'all'].includes(value)) {
+  if (!['week', 'month', 'three_months', 'all', 'current_week'].includes(value)) {
     throw httpError(400, 'Wybierz poprawny okres: tydzień, miesiąc, 3 miesiące lub cały okres.');
   }
   return value;
