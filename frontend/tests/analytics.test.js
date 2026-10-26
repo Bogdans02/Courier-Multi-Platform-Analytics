@@ -75,4 +75,6 @@ test('chart presentation keeps backend day keys, distinguishes missing samples f
   assert.equal(analyticsLabel('startTimes', { key: '3' }), '18:00–24:00');
   assert.equal(analyticsLabel('months', { key: '2026-01' }), '2026-01');
   assert.equal(analyticsLabel('platforms', { platform: 'bolt_food' }), 'Bolt Food');
+  assert.equal(analyticsLabel('platforms', { platform: 'pyszne_pl' }), 'Pyszne.pl');
+  assert.equal(analyticsLabel('platforms', { platform: 'wolt' }), 'Wolt');
 });

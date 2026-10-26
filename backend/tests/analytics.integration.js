@@ -330,6 +330,29 @@ test('details protects the endpoint, isolates accounts and returns empty groups 
   assert.equal((await request(`/analytics/details?user_id=${owner}`, { auth: otherToken })).body.details.shiftCount, 1);
 });
 
+test('Pyszne.pl and Wolt contribute to totals and support separate analytics filters', async () => {
+  await seed({ entries: [['pyszne_pl', '60.00', 3], ['wolt', '40.00', 2]] });
+  const summary = (await request()).body.summary;
+  assert.equal(summary.totalEarnings, '100.00');
+  assert.equal(summary.totalOrders, 5);
+  for (const [platform, earnings, orders, share] of [
+    ['pyszne_pl', '60.00', 3, '60.00'], ['wolt', '40.00', 2, '40.00'],
+  ]) {
+    const response = await request(`/analytics/details?platform=${platform}`);
+    assert.equal(response.status, 200);
+    const details = response.body.details;
+    assert.equal(details.shiftCount, 1);
+    assert.equal(details.trend[0].totalEarnings, earnings);
+    assert.equal(details.trend[0].totalOrders, orders);
+    assert.equal(details.trend[0].earningsPerHour, null);
+    assert.equal(details.platforms.length, 2);
+    assert.deepEqual(details.platforms.find((row) => row.platform === platform), {
+      platform, shiftCount: 1, totalEarnings: earnings, totalOrders: orders,
+      earningsPerOrder: '20.00', earningsShare: share, ordersShare: share,
+    });
+  }
+});
+
 test('details aggregates exact money once per shift and filters only attributable platform values', async () => {
   const startedAt = new Date('2026-10-05T10:00:00Z');
   await seed({ startedAt, hours: 6, entries: [['glovo', '160.10', 8], ['bolt_food', '80.20', 4]] });

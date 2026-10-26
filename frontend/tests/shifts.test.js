@@ -81,10 +81,16 @@ test('platform totals and payload support one or many entries with exact grosze 
   assert.deepEqual(platformTotals([{ earningsGross: '0.10', ordersCount: '0' }, { earningsGross: '0.20', ordersCount: '0' }]),
     { totalEarnings: '0.30', totalOrders: 0 });
   assert.deepEqual(platformTotals([{ earningsGross: '', ordersCount: '' }]), { totalEarnings: '0.00', totalOrders: 0 });
+  const allPlatforms = ['glovo', 'bolt_food', 'uber_eats', 'pyszne_pl', 'wolt', 'other']
+    .map((platform) => ({ ...entry, platform }));
+  assert.equal(validateShiftForm({ ...valid, platformEntries: allPlatforms }), '');
+  assert.deepEqual(shiftFormPayload({ ...valid, platformEntries: allPlatforms }).platformEntries,
+    allPlatforms.map((item) => ({ ...item, ordersCount: 10 })));
+  assert.deepEqual(platformTotals(allPlatforms), { totalEarnings: '963.00', totalOrders: 60 });
 });
 
 test('client rejects duplicate platforms, negative money, fractional orders and empty required fields', () => {
-  for (const entries of [[], [entry, entry], [{ ...entry, platform: 'unknown' }],
+  for (const entries of [[], Array(7).fill(entry), [entry, entry], [{ ...entry, platform: 'unknown' }],
     ...['-1', '', '1.234', '10000000000'].map((earningsGross) => [{ ...entry, earningsGross }]),
     ...['-1', '', '1.5', '2147483648'].map((ordersCount) => [{ ...entry, ordersCount }])]) {
     assert.notEqual(validatePlatformEntries(entries), '');

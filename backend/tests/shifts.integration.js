@@ -206,6 +206,18 @@ test('one or multiple platform entries persist and totals come from saved values
   assert.equal(result.body.shift.totalOrders, 0);
 });
 
+test('all six platforms can be saved together and read back with correct totals', async () => {
+  const shift = await completedShift();
+  const entries = ['glovo', 'bolt_food', 'uber_eats', 'pyszne_pl', 'wolt', 'other']
+    .map((platform) => ({ ...entry, platform }));
+  const result = await request(`/${shift.id}`, { method: 'PUT', body: { ...times, platformEntries: entries } });
+  assert.equal(result.status, 200);
+  assert.deepEqual(result.body.shift.platformEntries, entries);
+  assert.equal(result.body.shift.totalEarnings, '963.00');
+  assert.equal(result.body.shift.totalOrders, 60);
+  assert.deepEqual((await request(`/${shift.id}`)).body.shift, result.body.shift);
+});
+
 test('editing replaces or removes entries; deleting the shift cascades to its platform entries', async () => {
   const shift = await completedShift();
   await request(`/${shift.id}`, { method: 'PUT', body: { ...times, platformEntries: [entry,

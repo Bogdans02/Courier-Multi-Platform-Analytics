@@ -1,10 +1,10 @@
 import { httpError } from '../utils/httpError.js';
 
-const platforms = ['glovo', 'bolt_food', 'uber_eats', 'other'];
+const platforms = ['glovo', 'bolt_food', 'uber_eats', 'pyszne_pl', 'wolt', 'other'];
 
 export function validatePlatformEntries(entries) {
   if (!Array.isArray(entries) || entries.length < 1 || entries.length > platforms.length) {
-    throw httpError(400, 'Dodaj od jednej do czterech platform.');
+    throw httpError(400, 'Dodaj od jednej do sześciu platform.');
   }
   const selected = new Set();
   return entries.map((entry) => {

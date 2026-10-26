@@ -39,9 +39,13 @@ test('details validates both filters and supplies ordered empty weekday and star
   assert.deepEqual(result.startTimes.map((row) => row.key), ['0', '1', '2', '3']);
   assert.equal(result.weekdays[0].earningsPerHour, null);
   assert.equal((await service.details(42)).platform, 'all');
+  for (const platform of ['pyszne_pl', 'wolt']) {
+    assert.equal((await service.details(42, 'all', platform)).platform, platform);
+    assert.deepEqual(calls.at(-1), [42, null, now, platform, '0']);
+  }
   for (const platform of ['', 'unknown', ['glovo', 'other'], {}, "glovo' OR TRUE"]) {
     await assert.rejects(service.details(42, 'all', platform), { status: 400 });
   }
   await assert.rejects(service.details(42, 'year', 'all'), { status: 400 });
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, 4);
 });

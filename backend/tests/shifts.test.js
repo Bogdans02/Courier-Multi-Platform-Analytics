@@ -32,10 +32,13 @@ test('platform entries accept one or several platforms and normalize money and i
   assert.deepEqual(validatePlatformEntries([entry, { platform: 'bolt_food', earningsGross: 0, ordersCount: '0' }]),
     [entry, { platform: 'bolt_food', earningsGross: '0', ordersCount: 0 }]);
   assert.equal(validateShiftUpdate(valid).platformEntries.length, 1);
+  const entries = ['glovo', 'bolt_food', 'uber_eats', 'pyszne_pl', 'wolt', 'other']
+    .map((platform) => ({ ...entry, platform }));
+  assert.deepEqual(validateShiftUpdate({ ...valid, platformEntries: entries }).platformEntries, entries);
 });
 
 test('platform validation rejects missing entries, duplicates, unknown platforms and invalid values', () => {
-  const invalid = [undefined, null, {}, [], [entry, entry], [{ ...entry, platform: 'unknown' }], [null],
+  const invalid = [undefined, null, {}, [], Array(7).fill(entry), [entry, entry], [{ ...entry, platform: 'unknown' }], [null],
     ...[-1, '', true, '1.234', '10000000000'].map((earningsGross) => [{ ...entry, earningsGross }]),
     ...[-1, '', true, 1.5, '2147483648'].map((ordersCount) => [{ ...entry, ordersCount }])];
   for (const entries of invalid) assert.throws(() => validatePlatformEntries(entries), { status: 400 });

@@ -2,12 +2,14 @@ export const platforms = [
   { value: 'glovo', label: 'Glovo' },
   { value: 'bolt_food', label: 'Bolt Food' },
   { value: 'uber_eats', label: 'Uber Eats' },
+  { value: 'pyszne_pl', label: 'Pyszne.pl' },
+  { value: 'wolt', label: 'Wolt' },
   { value: 'other', label: 'Inne' },
 ];
 
 export function validatePlatformEntries(entries) {
   if (!Array.isArray(entries) || entries.length < 1 || entries.length > platforms.length) {
-    return 'Dodaj od jednej do czterech platform.';
+    return 'Dodaj od jednej do sześciu platform.';
   }
   const selected = new Set();
   for (const entry of entries) {
