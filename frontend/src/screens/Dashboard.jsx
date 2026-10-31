@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { getSummary } from '../services/api/analytics.js';
-import DashboardSummary, { DashboardDetails } from '../components/DashboardSummary.jsx';
+import DashboardSummary from '../components/DashboardSummary.jsx';
+import IncompleteShiftsNotice from '../components/IncompleteShiftsNotice.jsx';
 import AdvancedAnalytics from '../components/AdvancedAnalytics.jsx';
 import { formatRate } from '../utils/netSettings.js';
 import useEarningsMode from '../hooks/useEarningsMode.js';
@@ -55,6 +56,7 @@ export default function Dashboard({ session, onSessionExpired }) {
           <Link to="/settings" className="text-link inline-flex min-h-8 items-center">Ustawienia szacowanego netto →</Link>
         </div>
       </div>}
+      {statistics.status === 'success' && <IncompleteShiftsNotice count={statistics.summary.incompleteShiftCount} />}
       </div>
       {statistics.status === 'loading' && <p role="status">Wczytywanie statystyk...</p>}
       {statistics.status === 'error' && <div>
@@ -67,8 +69,7 @@ export default function Dashboard({ session, onSessionExpired }) {
       </div>}
       {statistics.status === 'success' && <DashboardSummary summary={statistics.summary} />}
       {mode !== null && <AdvancedAnalytics token={session.token} period={period} mode={mode} onSessionExpired={onSessionExpired}
-        showIncompleteWarning={statistics.status !== 'success'} />}
-      {statistics.status === 'success' && <DashboardDetails summary={statistics.summary} />}
+        summary={statistics.summary} showIncompleteWarning={statistics.status !== 'success'} />}
     </>
   );
 }

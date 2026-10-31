@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { getSummary, getDetails } from '../src/services/api/analytics.js';
-import { analyticsChartData, analyticsLabel } from '../src/utils/analyticsFormat.js';
+import { analyticsChartData, analyticsLabel, analyticsAxisLabel } from '../src/utils/analyticsFormat.js';
 
 test('analytics API requests estimated net for both summary and chart data without sending a client rate', async (t) => {
   const urls = [];
@@ -77,4 +77,17 @@ test('chart presentation keeps backend day keys, distinguishes missing samples f
   assert.equal(analyticsLabel('platforms', { platform: 'bolt_food' }), 'Bolt Food');
   assert.equal(analyticsLabel('platforms', { platform: 'pyszne_pl' }), 'Pyszne.pl');
   assert.equal(analyticsLabel('platforms', { platform: 'wolt' }), 'Wolt');
+});
+
+test('mobile axes shorten labels while keeping complete table labels and chart amounts', () => {
+  assert.equal(analyticsAxisLabel('01.10.2026'), '01.10');
+  assert.equal(analyticsAxisLabel('Poniedziałek'), 'pon.');
+  assert.equal(analyticsAxisLabel('Środa'), 'śr.');
+  assert.equal(analyticsAxisLabel('2026-10'), '10.2026');
+  assert.deepEqual(analyticsAxisLabel('06:00–12:00'), ['06:00–', '12:00']);
+  assert.equal(analyticsLabel('weekdays', { key: '1' }), 'Poniedziałek');
+  const homeLabel = ['26.10', 'pon.'];
+  assert.deepEqual(analyticsAxisLabel(homeLabel), homeLabel);
+  const row = { key: '1', shiftCount: 1, totalEarnings: '0.00' };
+  assert.deepEqual(analyticsChartData('weekdays', [row]), { labels: ['Poniedziałek'], values: [0] });
 });
