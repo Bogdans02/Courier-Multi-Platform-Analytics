@@ -61,6 +61,20 @@ test('connection failure keeps the Android token so restoration can be retried',
   assert.deepEqual(await service.restore(), { token: 'valid', user: account });
 });
 
+test('logout and rejected restore stop native tracking without clearing account-bound drafts', async () => {
+  const calls = [];
+  const service = createSessionService({
+    platform: nativeAndroid,
+    storage: { getItem: async () => 'expired', removeItem: async () => calls.push('remove-token') },
+    tracking: { stopTracking: async () => calls.push('stop-tracking') },
+    getUser: async () => { throw Object.assign(new Error('Expired'), { status: 401 }); },
+  });
+  assert.equal(await service.restore(), null);
+  assert.deepEqual(calls, ['stop-tracking', 'remove-token']);
+  await service.clear();
+  assert.deepEqual(calls.slice(2), ['stop-tracking', 'remove-token']);
+});
+
 test('native storage errors are surfaced on save, restore and logout without a fallback', async () => {
   const { service, storage, savedToken } = fixture({ token: 'stored' });
   storage.setItem = async () => { throw new Error('Keystore unavailable'); };

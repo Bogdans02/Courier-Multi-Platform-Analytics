@@ -4,6 +4,8 @@ import { finishShift, getActiveShift, startShift } from '../services/api/shifts.
 import { formatDateTime, formatDuration } from '../utils/shiftFormat.js';
 import PlatformBadge from '../components/PlatformBadge.jsx';
 import { Package, Play, Square } from 'lucide-react';
+import FloatingTrackingControl from '../components/FloatingTrackingControl.jsx';
+import { floatingTracking } from '../services/floatingTracking.js';
 
 function timerText(seconds) {
   const total = Math.max(0, Math.floor(seconds));
@@ -14,6 +16,7 @@ export default function ActiveShift({ session, onSessionExpired }) {
   const [shift, setShift] = useState(null);
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState(false);
+  const [trackingPending, setTrackingPending] = useState(false);
   const [error, setError] = useState('');
   const [reload, setReload] = useState(0);
   const [now, setNow] = useState(Date.now);
@@ -42,6 +45,7 @@ export default function ActiveShift({ session, onSessionExpired }) {
     setError('');
     try {
       if (shift) {
+        await floatingTracking.stopTracking();
         const { shift: completed } = await finishShift(session.token, shift.id);
         navigate(`/shifts/${completed.id}`, { state: { summary: true } });
       } else {
@@ -75,12 +79,13 @@ export default function ActiveShift({ session, onSessionExpired }) {
               <p className="muted mt-2 text-sm">Czas pracy</p>
             </div>
             {shift && <p className="muted text-xs">Rozpoczęcie: {formatDateTime(shift.startedAt)}</p>}
-          <button type="button" disabled={pending || !!error} onClick={act}
+          <button type="button" disabled={pending || trackingPending || !!error} onClick={act}
             className={`mt-6 w-full ${shift ? 'button-stop' : 'button-primary'}`}>
             {shift ? <Square size={22} strokeWidth={1.8} aria-hidden="true" /> : <Play size={22} strokeWidth={1.8} aria-hidden="true" />}
             {pending ? 'Proszę czekać...' : shift ? 'Zakończ zmianę' : 'Rozpocznij zmianę'}
           </button>
           </section>
+          {shift && <FloatingTrackingControl session={session} shiftId={shift.id} disabled={pending} onBusyChange={setTrackingPending} />}
           {shift && <section className="card space-y-4">
             <h2 className="font-semibold">Bieżąca zmiana</h2>
             <dl className="grid grid-cols-2 gap-4 text-sm">

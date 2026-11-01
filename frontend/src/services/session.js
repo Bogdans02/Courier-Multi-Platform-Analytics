@@ -1,15 +1,17 @@
 import { Capacitor } from '@capacitor/core';
 import { SecureStorage } from '@aparajita/capacitor-secure-storage';
 import { getCurrentUser } from './api/auth.js';
+import { floatingTracking } from './floatingTracking.js';
 
 const TOKEN_KEY = 'courier_analytics_jwt';
 
 // Dependencies can be replaced in tests without calling the native bridge.
-export function createSessionService({ platform = Capacitor, storage = SecureStorage, getUser = getCurrentUser } = {}) {
+export function createSessionService({ platform = Capacitor, storage = SecureStorage, getUser = getCurrentUser, tracking = floatingTracking } = {}) {
   const native = platform.isNativePlatform() && platform.getPlatform() === 'android';
 
   async function clear() {
     if (!native) return;
+    await tracking.stopTracking();
     try {
       await storage.removeItem(TOKEN_KEY);
     } catch {

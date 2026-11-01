@@ -3,14 +3,14 @@ import { formatMoney, toLocalDateTime } from '../utils/shiftFormat.js';
 import { shiftFormPayload, validateShiftForm } from '../utils/shiftValidation.js';
 import { platforms, platformTotals } from '../utils/platformEntries.js';
 
-export default function ShiftForm({ shift, onSubmit, onCancel }) {
+export default function ShiftForm({ shift, initialEntries, onSubmit, onCancel }) {
   const [values, setValues] = useState({
     startedAt: toLocalDateTime(shift.startedAt),
     endedAt: toLocalDateTime(shift.endedAt),
     distanceKm: shift.distanceKm ?? '',
     platformEntries: shift.platformEntries.length ? shift.platformEntries.map((entry) => ({
       platform: entry.platform, earningsGross: entry.earningsGross, ordersCount: String(entry.ordersCount),
-    })) : [{ platform: 'glovo', earningsGross: '', ordersCount: '' }],
+    })) : initialEntries?.length ? initialEntries : [{ platform: 'glovo', earningsGross: '', ordersCount: '' }],
   });
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');

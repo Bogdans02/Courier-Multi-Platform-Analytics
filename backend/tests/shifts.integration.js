@@ -76,6 +76,53 @@ async function completedShift(auth = token) {
   return (await request(`/${shift.id}/finish`, { method: 'POST', auth })).body.shift;
 }
 
+test('order events save atomically for the JWT owner; retries replace, omitted edits preserve, delete cascades', async () => {
+  const shift = await completedShift();
+  const orderEvents = [
+    { platform: 'glovo', clickedAt: times.startedAt },
+    { platform: 'wolt', clickedAt: '2026-10-10T09:10:20.123Z' },
+  ];
+  const body = { ...times, orderEvents, user_id: secondUser };
+  for (let retry = 0; retry < 2; retry++) {
+    const result = await request(`/${shift.id}`, { method: 'PUT', body });
+    assert.equal(result.status, 200);
+    assert.deepEqual(result.body.shift.orderEvents, orderEvents);
+    assert.deepEqual((await request()).body.shifts[0].orderEvents, orderEvents);
+    assert.equal(result.body.shift.totalOrders, 10); // No fabricated missing clicks.
+    assert.equal((await pool.query('SELECT * FROM order_events WHERE shift_id = $1', [shift.id])).rowCount, 2);
+  }
+  assert.equal((await request(`/${shift.id}`, { method: 'PUT', body, auth: secondToken })).status, 404);
+  assert.equal((await request(`/${shift.id}`, { auth: secondToken })).status, 404);
+  assert.equal((await request(`/${shift.id}`, { method: 'PUT', body, auth: null })).status, 401);
+  const edited = await request(`/${shift.id}`, { method: 'PUT', body: { ...times, platformEntries: [{ ...entry, ordersCount: 15 }] } });
+  assert.deepEqual(edited.body.shift.orderEvents, orderEvents);
+  assert.equal(edited.body.shift.totalOrders, 15);
+  for (const event of [{ platform: 'unknown', clickedAt: times.startedAt }, { platform: 'glovo', clickedAt: 'invalid' }]) {
+    assert.equal((await request(`/${shift.id}`, { method: 'PUT', body: { ...times, orderEvents: [event] } })).status, 400);
+  }
+  assert.deepEqual((await request(`/${shift.id}`)).body.shift.orderEvents, orderEvents);
+  await assert.rejects(pool.query('INSERT INTO order_events (shift_id, platform, clicked_at) VALUES ($1, $2, $3)',
+    [shift.id, 'unknown', times.startedAt]), { code: '23514' });
+  await assert.rejects(pool.query('INSERT INTO order_events (shift_id, platform, clicked_at) VALUES ($1, $2, $3)',
+    [shift.id, 'glovo', 'infinity']), { code: '23514' });
+  await request(`/${shift.id}`, { method: 'DELETE' });
+  assert.equal((await pool.query('SELECT * FROM order_events WHERE shift_id = $1', [shift.id])).rowCount, 0);
+});
+
+test('a failed event INSERT rolls back shift, platform entries and replacement events together', async () => {
+  const shift = await completedShift();
+  const orderEvents = [{ platform: 'glovo', clickedAt: times.startedAt }];
+  const original = (await request(`/${shift.id}`, { method: 'PUT', body: { ...times, orderEvents } })).body.shift;
+  // Invalid platform bypasses HTTP validation to exercise the real transaction rollback.
+  await assert.rejects(createShiftRepository(pool).update(firstUser, shift.id, {
+    ...times, startedAt: new Date('2026-10-10T07:00:00.000Z'), distanceKm: '20.00',
+    platformEntries: [{ ...entry, ordersCount: 99 }], orderEvents: [{ platform: 'invalid', clickedAt: times.startedAt }],
+  }), { code: '23514' });
+  assert.deepEqual((await request(`/${shift.id}`)).body.shift, original);
+  const result = await request(`/${shift.id}`, { method: 'PUT', body: { ...times, orderEvents: [] } });
+  assert.deepEqual(result.body.shift.orderEvents, []);
+});
+
 test('start uses the authenticated owner and server time; only one active shift per account', async () => {
   assert.deepEqual((await request('/active')).body, { shift: null });
   const beforeStart = Date.now();

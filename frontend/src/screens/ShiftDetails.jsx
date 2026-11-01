@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router';
 import ShiftForm from '../components/ShiftForm.jsx';
 import ShiftPlatformSummary from '../components/ShiftPlatformSummary.jsx';
-import { deleteShift, getShift, updateShift } from '../services/api/shifts.js';
+import { getShift, updateShift } from '../services/api/shifts.js';
 import { formatDateTime, formatDistance, formatDuration } from '../utils/shiftFormat.js';
+import { deleteShiftWithDraft, floatingTracking } from '../services/floatingTracking.js';
+import { entriesFromOrderEvents, withOrderEvents } from '../utils/orderEvents.js';
 
 export default function ShiftDetails({ session, onSessionExpired }) {
   const { id } = useParams();
@@ -16,22 +18,29 @@ export default function ShiftDetails({ session, onSessionExpired }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [pending, setPending] = useState(false);
   const [reload, setReload] = useState(0);
+  const [draft, setDraft] = useState(null);
 
   useEffect(() => {
     const controller = new AbortController();
     getShift(session.token, id, controller.signal)
-      .then(({ shift }) => { setShift(shift); setError(''); setLoading(false); })
+      .then(async ({ shift }) => {
+        const local = await floatingTracking.getTrackingState(session.user.id, shift.id);
+        if (controller.signal.aborted) return;
+        setDraft(local);
+        setShift(shift); setError(''); setLoading(false);
+      })
       .catch((error) => {
         if (controller.signal.aborted) return;
         if (error.status === 401) onSessionExpired();
         else { setError(error.message); setLoading(false); }
       });
     return () => controller.abort();
-  }, [session.token, id, onSessionExpired, reload]);
+  }, [session.token, session.user.id, id, onSessionExpired, reload]);
 
   async function save(values) {
     try {
-      await updateShift(session.token, shift.id, values);
+      await updateShift(session.token, shift.id, withOrderEvents(values, draft));
+      await floatingTracking.clearTrackingDraft(session.user.id, shift.id);
       navigate('/history', { state: { message: 'Zmiana została zapisana.' } });
     } catch (error) {
       if (error.status === 401) onSessionExpired();
@@ -43,7 +52,8 @@ export default function ShiftDetails({ session, onSessionExpired }) {
     setPending(true);
     setError('');
     try {
-      await deleteShift(session.token, shift.id);
+      if (shift.status === 'active') await floatingTracking.stopTracking();
+      await deleteShiftWithDraft(session, shift.id);
       navigate('/history', { state: { message: 'Zmiana została usunięta.' } });
     } catch (error) {
       if (error.status === 401) onSessionExpired();
@@ -71,7 +81,8 @@ export default function ShiftDetails({ session, onSessionExpired }) {
           {shift.status === 'completed' && <ShiftPlatformSummary shift={shift} />}
           <p><Link to="/expenses/new" state={{ shiftId: shift.id }} className="text-link">Dodaj koszt do tej zmiany</Link></p>
           {editing && shift.status === 'completed' ? (
-            <ShiftForm key={shift.id} shift={shift} onSubmit={save} onCancel={() => setEditing(false)} />
+            <ShiftForm key={shift.id} shift={shift} initialEntries={!shift.platformEntries.length && draft?.hasDraft
+              ? entriesFromOrderEvents(draft.orderEvents) : undefined} onSubmit={save} onCancel={() => setEditing(false)} />
           ) : (
             <div className="flex flex-wrap gap-3">
               {shift.status === 'completed' && <button type="button" disabled={pending || confirmDelete} onClick={() => setEditing(true)} className="rounded border border-slate-600 px-4 py-3">Edytuj zmianę</button>}

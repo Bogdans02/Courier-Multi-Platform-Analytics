@@ -15,6 +15,7 @@ function presentShift(row) {
     distanceSource: row.distance_source,
     durationSeconds: row.ended_at ? (row.ended_at - row.started_at) / 1000 : null,
     platformEntries,
+    orderEvents: row.order_events ?? [],
     totalEarnings: (earningsCents / 100).toFixed(2),
     estimatedNetEarnings: row.estimated_net_earnings ?? null,
     totalOrders: platformEntries.reduce((sum, entry) => sum + entry.ordersCount, 0),

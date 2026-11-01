@@ -1,4 +1,9 @@
 const columns = 'id, status, started_at, ended_at, distance_km, distance_source';
+const eventColumns = `COALESCE((
+  SELECT json_agg(json_build_object('platform', o.platform, 'clickedAt',
+    to_char(o.clicked_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')) ORDER BY o.id)
+  FROM order_events o WHERE o.shift_id = shifts.id
+), '[]'::json) AS order_events`;
 const entryColumns = `COALESCE((
   SELECT json_agg(json_build_object('platform', e.platform, 'earningsGross', e.earnings_gross::text,
     'ordersCount', e.orders_count) ORDER BY e.id)
@@ -32,14 +37,14 @@ export function createShiftRepository(pool) {
     },
     async list(userId) {
       const { rows } = await pool.query(
-        `SELECT ${columns}, ${entryColumns}, ${estimatedNetColumn} FROM shifts WHERE user_id = $1 AND status = 'completed'
+        `SELECT ${columns}, ${entryColumns}, ${estimatedNetColumn}, ${eventColumns} FROM shifts WHERE user_id = $1 AND status = 'completed'
          ORDER BY started_at DESC, id DESC`, [userId],
       );
       return rows;
     },
     async findById(userId, id) {
       const { rows } = await pool.query(
-        `SELECT ${columns}, ${entryColumns}, ${estimatedNetColumn} FROM shifts WHERE user_id = $1 AND id = $2`, [userId, id],
+        `SELECT ${columns}, ${entryColumns}, ${estimatedNetColumn}, ${eventColumns} FROM shifts WHERE user_id = $1 AND id = $2`, [userId, id],
       );
       return rows[0];
     },
@@ -50,7 +55,7 @@ export function createShiftRepository(pool) {
       );
       return rows[0];
     },
-    async update(userId, id, { startedAt, endedAt, distanceKm, platformEntries }) {
+    async update(userId, id, { startedAt, endedAt, distanceKm, platformEntries, orderEvents }) {
       const client = await pool.connect();
       try {
         await client.query('BEGIN');
@@ -72,6 +77,14 @@ export function createShiftRepository(pool) {
               [id, entry.platform, entry.earningsGross, entry.ordersCount],
             );
             shift.platform_entries.push(saved);
+          }
+          // Omitted on ordinary edits; an explicit array replaces the full set.
+          if (orderEvents !== undefined) {
+            await client.query('DELETE FROM order_events WHERE shift_id = $1', [id]);
+            for (const event of orderEvents) {
+              await client.query('INSERT INTO order_events (shift_id, platform, clicked_at) VALUES ($1, $2, $3)',
+                [id, event.platform, event.clickedAt]);
+            }
           }
         }
         await client.query('COMMIT');

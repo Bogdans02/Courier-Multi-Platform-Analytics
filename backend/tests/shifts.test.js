@@ -5,6 +5,19 @@ import { validatePlatformEntries, validateShiftId, validateShiftUpdate } from '.
 const entry = { platform: 'glovo', earningsGross: '160.50', ordersCount: 10 };
 const valid = { startedAt: '2026-10-10T08:00:00.000Z', endedAt: '2026-10-10T10:30:00.000Z', platformEntries: [entry] };
 
+test('order events validate actual platforms and canonical click timestamps independently of final counts', () => {
+  const event = { platform: 'wolt', clickedAt: valid.startedAt };
+  const result = validateShiftUpdate({ ...valid, orderEvents: [event] });
+  assert.equal(result.orderEvents[0].clickedAt.toISOString(), event.clickedAt);
+  assert.equal(result.orderEvents[0].platform, 'wolt');
+  assert.equal(validateShiftUpdate(valid).orderEvents, undefined);
+  assert.deepEqual(validateShiftUpdate({ ...valid, orderEvents: [] }).orderEvents, []);
+  for (const orderEvents of [null, {}, [null], [{ ...event, platform: 'unknown' }],
+    ...['invalid', '2026-02-30T08:00:00.000Z', '2026-10-10T08:00:00', null].map((clickedAt) => [{ ...event, clickedAt }])]) {
+    assert.throws(() => validateShiftUpdate({ ...valid, orderEvents }), { status: 400 });
+  }
+});
+
 test('shift update validates time order and preserves optional manual distance', () => {
   const values = validateShiftUpdate(valid);
   assert.equal(values.startedAt.toISOString(), valid.startedAt);

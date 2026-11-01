@@ -59,5 +59,15 @@ export function validateShiftUpdate(body) {
     distanceKm = String(distanceKm);
   }
   const platformEntries = validatePlatformEntries(body.platformEntries);
-  return { startedAt, endedAt, distanceKm, platformEntries };
+  const orderEvents = body.orderEvents === undefined ? undefined : validateOrderEvents(body.orderEvents);
+  return { startedAt, endedAt, distanceKm, platformEntries, orderEvents };
+}
+
+export function validateOrderEvents(events) {
+  if (!Array.isArray(events)) throw httpError(400, 'Zdarzenia zamówień muszą być listą.');
+  return events.map((event) => {
+    if (!platforms.includes(event?.platform)) throw httpError(400, 'Wybierz poprawną platformę zdarzenia.');
+    const clickedAt = parseTime(event.clickedAt);
+    return { platform: event.platform, clickedAt };
+  });
 }

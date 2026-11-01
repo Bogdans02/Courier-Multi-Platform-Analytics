@@ -26,7 +26,7 @@ before(async () => {
   pool = createDatabasePool(url.toString());
 
   assert.deepEqual(await runMigrations(pool), [
-    '001_initial_schema.sql', '002_net_settings_ppk.sql', '003_add_pyszne_and_wolt.sql',
+    '001_initial_schema.sql', '002_net_settings_ppk.sql', '003_add_pyszne_and_wolt.sql', '004_order_events.sql',
   ]);
 });
 
@@ -65,14 +65,14 @@ async function withFixture(check) {
   }
 }
 
-test('migrations are repeatable and create all five business tables', async () => {
+test('migrations are repeatable and create all six business tables', async () => {
   assert.deepEqual(await runMigrations(pool), []);
   const { rows } = await pool.query(`
     SELECT table_name FROM information_schema.tables
     WHERE table_schema = $1 ORDER BY table_name
   `, [schema]);
   assert.deepEqual(rows.map((row) => row.table_name), [
-    'expenses', 'schema_migrations', 'shift_platform_entries', 'shifts', 'user_settings', 'users',
+    'expenses', 'order_events', 'schema_migrations', 'shift_platform_entries', 'shifts', 'user_settings', 'users',
   ]);
 });
 
@@ -89,7 +89,7 @@ test('failed migrations roll back DDL and migration history together', async () 
         (SELECT COUNT(*)::integer FROM schema_migrations) AS migrations_count
     `);
     assert.equal(row.probe, null);
-    assert.equal(row.migrations_count, 3);
+    assert.equal(row.migrations_count, 4);
   } finally {
     await rm(join(directory, '002_broken.sql'), { force: true });
     await rmdir(directory);
