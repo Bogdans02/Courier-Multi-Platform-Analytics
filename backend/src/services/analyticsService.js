@@ -2,9 +2,21 @@ import { validateAnalyticsPlatform, validateEarningsMode } from '../validators/a
 import { httpError } from '../utils/httpError.js';
 import { resolveAnalyticsWindow, resolvePreviousWindow } from './analyticsWindow.js';
 
-function emptyGroup(key) {
+function emptyGroup(key, platform) {
   return { key, shiftCount: 0, totalEarnings: '0.00', totalOrders: 0,
-    earningsPerOrder: null, earningsPerHour: null };
+    earningsPerOrder: null, earningsPerHour: null,
+    totalHours: platform === 'all' ? 0 : null, ordersPerHour: null };
+}
+
+function bestWeekdays(groups) {
+  // SQL orders by the rounded NUMERIC rate. Compare its text directly, without
+  // recalculating money or introducing floating-point differences in a tie.
+  const best = groups.find(group => group.earningsPerHour !== null);
+  if (!best) return { status: 'no_data', earningsPerHour: null, days: [] };
+  if (best.earningsPerHour === '0.00') return { status: 'all_zero', earningsPerHour: '0.00', days: [] };
+  return { status: 'available', earningsPerHour: best.earningsPerHour,
+    days: groups.filter(group => group.earningsPerHour === best.earningsPerHour)
+      .sort((a, b) => Number(a.key) - Number(b.key)) };
 }
 
 export function createAnalyticsService(analytics, clock = () => new Date(), settings) {
@@ -39,16 +51,17 @@ export function createAnalyticsService(analytics, clock = () => new Date(), sett
       const { period, from, to, selection } = resolveAnalyticsWindow({ ...calendarQuery, period: periodValue }, clock());
       const platform = validateAnalyticsPlatform(platformValue);
       const { mode, deductionRate } = await earningsSettings(userId, modeValue);
-      const result = await analytics.details(userId, from, to, platform, deductionRate, ...(selection ? [selection] : []));
+      const { rankingWeekdays = [], ...result } = await analytics.details(userId, from, to, platform, deductionRate, ...(selection ? [selection] : []));
       return {
         period, platform, mode, deductionRate: mode === 'estimated_net' ? deductionRate : null, timeZone: 'Europe/Warsaw',
         from: from?.toISOString() ?? null, to: to.toISOString(),
         ...(selection && { selection }),
         ...result,
+        bestWeekdays: bestWeekdays(rankingWeekdays),
         weekdays: [1, 2, 3, 4, 5, 6, 7].map((key) =>
-          result.weekdays.find((row) => row.key === String(key)) ?? emptyGroup(String(key))),
+          result.weekdays.find((row) => row.key === String(key)) ?? emptyGroup(String(key), platform)),
         startTimes: [0, 1, 2, 3].map((key) =>
-          result.startTimes.find((row) => row.key === String(key)) ?? emptyGroup(String(key))),
+          result.startTimes.find((row) => row.key === String(key)) ?? emptyGroup(String(key), platform)),
       };
     },
   };

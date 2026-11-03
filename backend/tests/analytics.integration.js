@@ -337,6 +337,12 @@ test('calendar summary and details share half-open Warsaw bounds, ownership and 
       assert.equal(s.totalEarnings, amount);
       assert.equal(s.totalOrders, 4);
       assert.equal(s.totalHours, 2 / 3600000);
+      assert.equal(d.months[0].totalHours, s.totalHours);
+      for (const field of ['trend', 'months', 'weekdays', 'startTimes']) {
+        for (const group of d[field].filter(group => group.shiftCount)) {
+          assert.equal(group.ordersPerHour, '7200000.00');
+        }
+      }
       assert.equal(s.totalExpenses, '2.00');
       assert.equal(s.expenseCount, 2);
       assert.deepEqual(d.trend.map((row) => row.key), [dateKey(startMs), dateKey(endMs - 1)]);
@@ -347,7 +353,7 @@ test('calendar summary and details share half-open Warsaw bounds, ownership and 
       assert.deepEqual(filtered.platforms, d.platforms);
       for (const field of ['comparison', 'bestWeekdays', 'hourlyActivity', 'availableRange']) {
         assert.equal(Object.hasOwn(s, field), field === 'comparison');
-        assert.equal(Object.hasOwn(d, field), false);
+        assert.equal(Object.hasOwn(d, field), field === 'bestWeekdays');
       }
     }
     for (const endpoint of ['summary', 'details']) {
@@ -535,6 +541,9 @@ test('net charts recalculate every group, preserve platform restrictions and han
   assert.equal(zero.trend[0].earningsPerHour, '0.00');
   assert.equal(zero.platforms[0].earningsShare, null);
   assert.notEqual(zero.platforms[0].ordersShare, null);
+  assert.deepEqual(zero.bestWeekdays, { status: 'all_zero', earningsPerHour: '0.00', days: [] });
+  assert.equal(zero.trend[0].totalHours, net.trend[0].totalHours);
+  assert.equal(zero.trend[0].ordersPerHour, net.trend[0].ordersPerHour);
 });
 
 test('net earnings round only final aggregates and update after shift edits and deletion', async () => {
@@ -649,6 +658,9 @@ test('current week includes the Warsaw Monday boundary and Sunday, with exact ne
     assert.equal(summary.shiftCount, 2);
     assert.equal(summary.totalEarnings, amount);
     assert.equal(details.shiftCount, 2);
+    assert.equal(details.months[0].totalHours, 4);
+    assert.equal(details.months[0].ordersPerHour, '0.50'); // Two final orders over four hours.
+    assert.deepEqual(details.bestWeekdays.days.map(day => day.key), ['1']);
     assert.deepEqual(details.trend.map(row => row.key), ['2026-10-19', '2026-10-25']);
   }
   assert.equal((await request('/analytics/summary?period=current_week')).status, 200);
@@ -683,6 +695,9 @@ test('details protects the endpoint, isolates accounts and returns empty groups 
   assert.equal(details.weekdays.length, 7);
   assert.equal(details.startTimes.length, 4);
   assert.equal(details.weekdays[0].earningsPerOrder, null);
+  assert.equal(details.weekdays[0].totalHours, 0);
+  assert.equal(details.weekdays[0].ordersPerHour, null);
+  assert.deepEqual(details.bestWeekdays, { status: 'no_data', earningsPerHour: null, days: [] });
   for (const auth of [null, 'invalid']) assert.equal((await request('/analytics/details', { auth })).status, 401);
   await seed({ userId: other });
   assert.equal((await request(`/analytics/details?user_id=${other}`)).body.details.shiftCount, 0);
@@ -728,6 +743,13 @@ test('details aggregates exact money once per shift and filters only attributabl
   assert.equal(all.trend[0].earningsPerHour, '50.04');
   assert.equal(all.weekdays[0].shiftCount, 2);
   assert.equal(all.startTimes[2].totalEarnings, '400.30');
+  for (const field of ['trend', 'months', 'weekdays', 'startTimes']) {
+    const group = all[field].find(group => group.shiftCount);
+    assert.equal(group.totalHours, 8);
+    assert.equal(group.ordersPerHour, '2.50'); // (12 + 8) / (6 + 2), not the mean of 2 and 4.
+  }
+  assert.deepEqual(all.bestWeekdays, { status: 'available', earningsPerHour: '50.04',
+    days: [{ key: '1', shiftCount: 2, totalHours: 8, earningsPerHour: '50.04' }] });
   const glovo = all.platforms.find((row) => row.platform === 'glovo');
   assert.deepEqual(glovo, { platform: 'glovo', shiftCount: 2, totalEarnings: '320.10', totalOrders: 16,
     earningsPerOrder: '20.01', earningsShare: '79.97', ordersShare: '80.00' });
@@ -739,19 +761,90 @@ test('details aggregates exact money once per shift and filters only attributabl
     for (const row of filtered[field]) {
       assert.equal(row.earningsPerHour, null);
       assert.equal(Object.hasOwn(row, 'earningsPerKm'), false);
-      assert.equal(Object.hasOwn(row, 'totalHours'), false);
+      assert.equal(row.totalHours, null);
+      assert.equal(row.ordersPerHour, null);
     }
   }
   assert.deepEqual(filtered.platforms, all.platforms);
+  assert.deepEqual(filtered.bestWeekdays, all.bestWeekdays);
   const absent = (await request('/analytics/details?platform=uber_eats')).body.details;
   assert.equal(absent.shiftCount, 0);
   assert.deepEqual(absent.trend, []);
+  assert.deepEqual(absent.bestWeekdays, all.bestWeekdays);
+  assert.equal(absent.weekdays[0].totalHours, null);
   await pool.query('UPDATE shift_platform_entries SET earnings_gross = 0, orders_count = 0');
   const zero = (await request('/analytics/details')).body.details;
   assert.equal(zero.trend[0].totalEarnings, '0.00');
   assert.equal(zero.trend[0].earningsPerHour, '0.00');
   assert.equal(zero.trend[0].earningsPerOrder, null);
   assert.ok(zero.platforms.every((row) => row.earningsShare === null && row.ordersShare === null));
+  assert.equal(zero.trend[0].ordersPerHour, '0.00');
+  assert.deepEqual(zero.bestWeekdays, { status: 'all_zero', earningsPerHour: '0.00', days: [] });
+});
+
+test('best weekdays maximize global earnings per hour rather than earnings totals or average shift rates', async () => {
+  await seed({ startedAt: new Date('2026-10-05T06:00:00Z'), hours: 10, entries: [['glovo', '400', 20]] });
+  const tracked = await seed({ startedAt: new Date('2026-10-06T08:00:00Z'), hours: 2,
+    entries: [['glovo', '80', 4], ['wolt', '40', 2]] });
+  await seed({ startedAt: new Date('2026-10-06T12:00:00Z'), hours: 1, entries: [['glovo', '30', 3]] });
+  await seed({ startedAt: new Date('2026-10-07T08:00:00Z'), hours: 1, entries: [['wolt', '49', 1]] });
+  await seed({ userId: other, startedAt: new Date('2026-10-10T08:00:00Z'), entries: [['glovo', '9000', 99]] });
+  await pool.query(`INSERT INTO order_events (shift_id, platform, clicked_at) VALUES ($1, 'glovo', $2)`,
+    [tracked, '2026-10-06T09:00:00Z']); // Independent of the nine final Tuesday orders.
+  await request('/settings', { method: 'PUT', body: { netProfile: 'custom', deductionRate: '0.2' } });
+  for (const [mode, rate] of [['gross', '50.00'], ['estimated_net', '40.00']]) {
+    const result = await request(`/analytics/details?calendar=month&anchor=2026-10-01&asOf=2026-11-02T12:00:00Z&mode=${mode}`);
+    assert.equal(result.status, 200);
+    const details = result.body.details;
+    assert.deepEqual(details.bestWeekdays, { status: 'available', earningsPerHour: rate,
+      days: [{ key: '2', shiftCount: 2, totalHours: 3, earningsPerHour: rate }] });
+    assert.equal(details.weekdays[1].totalHours, 3);
+    assert.equal(details.weekdays[1].ordersPerHour, '3.00');
+    for (const platform of ['glovo', 'wolt', 'uber_eats']) {
+      const filtered = (await request(`/analytics/details?calendar=month&anchor=2026-10-01&asOf=2026-11-02T12:00:00Z&mode=${mode}&platform=${platform}`)).body.details;
+      assert.deepEqual(filtered.bestWeekdays, details.bestWeekdays);
+      for (const field of ['trend', 'months', 'weekdays', 'startTimes']) {
+        assert.ok(filtered[field].every(group => group.totalHours === null && group.ordersPerHour === null && group.earningsPerHour === null));
+      }
+    }
+  }
+  const foreign = await request('/analytics/details?period=all&user_id=' + owner, { auth: otherToken });
+  assert.deepEqual(foreign.body.details.bestWeekdays, { status: 'available', earningsPerHour: '4500.00',
+    days: [{ key: '6', shiftCount: 1, totalHours: 2, earningsPerHour: '4500.00' }] });
+});
+
+test('best weekdays return every tie after NUMERIC rounding, with natural weekday order and the current net profile', async () => {
+  for (const [date, amount] of [['2026-10-05', '100.01'], ['2026-10-10', '100.00'], ['2026-10-11', '100.02']]) {
+    await seed({ startedAt: new Date(`${date}T08:00:00Z`), hours: 3, entries: [['glovo', amount, 3]] });
+  }
+  const gross = (await request('/analytics/details?period=all')).body.details;
+  assert.equal(gross.bestWeekdays.earningsPerHour, '33.34');
+  assert.deepEqual(gross.bestWeekdays.days.map(day => day.key), ['1', '7']);
+  assert.ok(gross.bestWeekdays.days.every(day => day.shiftCount === 1 && day.totalHours === 3));
+  await request('/settings', { method: 'PUT', body: { netProfile: 'custom', deductionRate: '0.2' } });
+  const net = (await request('/analytics/details?mode=estimated_net')).body.details;
+  assert.equal(net.bestWeekdays.earningsPerHour, '26.67');
+  assert.deepEqual(net.bestWeekdays.days.map(day => day.key), ['1', '6', '7']);
+  for (const field of ['trend', 'months', 'weekdays', 'startTimes']) {
+    assert.deepEqual(net[field].map(group => [group.totalHours, group.ordersPerHour]),
+      gross[field].map(group => [group.totalHours, group.ordersPerHour]));
+  }
+  await request('/settings', { method: 'PUT', body: { netProfile: 'custom', deductionRate: '0' } });
+  assert.deepEqual((await request('/analytics/details?mode=estimated_net')).body.details.bestWeekdays, gross.bestWeekdays);
+});
+
+test('weekday ranking and hours use Warsaw start dates, whole overnight shifts and actual DST durations', async () => {
+  await seed({ startedAt: new Date('2026-10-02T21:30:00Z'), hours: 2, entries: [['glovo', '100', 4]] }); // Friday 23:30 -> Saturday.
+  await seed({ startedAt: new Date('2026-10-04T22:30:00Z'), hours: 1, entries: [['glovo', '100', 2]] }); // Monday in Warsaw.
+  await seed({ startedAt: new Date('2026-10-25T00:30:00Z'), hours: 2, entries: [['glovo', '300', 6]] }); // 02:30 CEST -> 03:30 CET: two hours.
+  const details = (await request('/analytics/details?calendar=month&anchor=2026-10-01&asOf=2026-11-02T12:00:00Z')).body.details;
+  assert.deepEqual(details.bestWeekdays, { status: 'available', earningsPerHour: '150.00',
+    days: [{ key: '7', shiftCount: 1, totalHours: 2, earningsPerHour: '150.00' }] });
+  assert.deepEqual(details.trend.map(group => [group.key, group.totalHours]),
+    [['2026-10-02', 2], ['2026-10-05', 1], ['2026-10-25', 2]]);
+  assert.equal(details.weekdays[4].totalHours, 2);
+  assert.equal(details.weekdays[5].totalHours, 0);
+  assert.equal(details.months[0].totalHours, 5);
 });
 
 test('Warsaw grouping handles local day and year boundaries, exact six-hour buckets and DST', async () => {

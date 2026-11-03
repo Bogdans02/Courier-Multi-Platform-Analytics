@@ -14,13 +14,21 @@ export function createAnalyticsRepository(pool) {
           SELECT e.shift_id, e.platform, e.orders_count,
             e.earnings_gross * (1 - $5::numeric) AS earnings_gross
           FROM shift_platform_entries e JOIN period_shifts s ON s.id = e.shift_id
-        ), selected_shifts AS (
+        ), shift_totals AS (
           -- Sum entries first, so a multi-platform shift contributes its hours only once.
           SELECT s.id, s.local_start, s.hours, SUM(e.earnings_gross) AS earnings,
-            SUM(e.orders_count) AS orders
+            SUM(e.earnings_gross) FILTER (WHERE $4 = 'all' OR e.platform = $4) AS selected_earnings,
+            SUM(e.orders_count) FILTER (WHERE $4 = 'all' OR e.platform = $4) AS selected_orders
           FROM period_shifts s JOIN period_entries e ON e.shift_id = s.id
-          WHERE $4 = 'all' OR e.platform = $4
           GROUP BY s.id, s.local_start, s.hours
+        ), selected_shifts AS (
+          SELECT id, local_start, hours, selected_earnings AS earnings, selected_orders AS orders
+          FROM shift_totals WHERE selected_earnings IS NOT NULL
+        ), weekday_totals AS (
+          -- Best weekdays always use all platforms, independently of the details filter.
+          SELECT EXTRACT(ISODOW FROM local_start)::integer AS key, COUNT(*)::integer AS count,
+            SUM(hours) AS hours, ROUND(SUM(earnings) / NULLIF(SUM(hours), 0), 2) AS earnings_per_hour
+          FROM shift_totals GROUP BY EXTRACT(ISODOW FROM local_start)
         ), grouped AS (
           SELECT 'trend' AS kind, TO_CHAR(local_start, 'YYYY-MM-DD') AS key,
             earnings, orders, hours FROM selected_shifts
@@ -40,7 +48,9 @@ export function createAnalyticsRepository(pool) {
           SELECT kind, key, JSONB_BUILD_OBJECT(
             'key', key, 'shiftCount', count, 'totalEarnings', ROUND(earnings, 2)::text,
             'totalOrders', orders, 'earningsPerOrder', ROUND(earnings / NULLIF(orders, 0), 2)::text,
-            'earningsPerHour', CASE WHEN $4 = 'all' THEN ROUND(earnings / NULLIF(hours, 0), 2)::text END
+            'earningsPerHour', CASE WHEN $4 = 'all' THEN ROUND(earnings / NULLIF(hours, 0), 2)::text END,
+            'totalHours', CASE WHEN $4 = 'all' THEN hours END,
+            'ordersPerHour', CASE WHEN $4 = 'all' THEN ROUND(orders / NULLIF(hours, 0), 2)::text END
           ) AS value FROM group_totals
         ), platform_totals AS (
           -- Platform comparison always uses all entries in the selected period.
@@ -61,6 +71,9 @@ export function createAnalyticsRepository(pool) {
           COALESCE((SELECT JSONB_AGG(value ORDER BY key) FROM group_results WHERE kind = 'months'), '[]') AS months,
           COALESCE((SELECT JSONB_AGG(value ORDER BY key) FROM group_results WHERE kind = 'weekdays'), '[]') AS weekdays,
           COALESCE((SELECT JSONB_AGG(value ORDER BY key) FROM group_results WHERE kind = 'startTimes'), '[]') AS "startTimes",
+          COALESCE((SELECT JSONB_AGG(JSONB_BUILD_OBJECT(
+            'key', key::text, 'shiftCount', count, 'totalHours', hours, 'earningsPerHour', earnings_per_hour::text
+          ) ORDER BY earnings_per_hour DESC NULLS LAST, key) FROM weekday_totals), '[]') AS "rankingWeekdays",
           COALESCE((SELECT JSONB_AGG(value ORDER BY platform) FROM platform_results), '[]') AS platforms
       `, [userId, from, to, platform, deductionRate, selection?.endExclusive ?? null, selection?.asOf ?? null]);
       return row;

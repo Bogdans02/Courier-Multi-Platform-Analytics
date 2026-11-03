@@ -63,7 +63,14 @@ test('details validates both filters and supplies ordered empty weekday and star
   assert.deepEqual(result.weekdays.map((row) => row.key), ['1', '2', '3', '4', '5', '6', '7']);
   assert.deepEqual(result.startTimes.map((row) => row.key), ['0', '1', '2', '3']);
   assert.equal(result.weekdays[0].earningsPerHour, null);
-  assert.equal((await service.details(42)).platform, 'all');
+  assert.equal(result.weekdays[0].totalHours, null);
+  assert.equal(result.weekdays[0].ordersPerHour, null);
+  const global = await service.details(42);
+  assert.equal(global.platform, 'all');
+  assert.equal(global.weekdays[0].totalHours, 0);
+  assert.equal(global.startTimes[0].totalHours, 0);
+  assert.equal(global.startTimes[0].ordersPerHour, null);
+  assert.deepEqual(global.bestWeekdays, { status: 'no_data', earningsPerHour: null, days: [] });
   for (const platform of ['pyszne_pl', 'wolt']) {
     assert.equal((await service.details(42, 'all', platform)).platform, platform);
     assert.deepEqual(calls.at(-1), [42, null, now, platform, '0']);
@@ -73,6 +80,47 @@ test('details validates both filters and supplies ordered empty weekday and star
   }
   await assert.rejects(service.details(42, 'year', 'all'), { status: 400 });
   assert.equal(calls.length, 4);
+});
+
+test('best weekdays preserve a small sample, all rounded ties in weekday order, zero and uncomputable states', async () => {
+  const day = (key, rate, hours = 2) => ({ key, earningsPerHour: rate, totalHours: hours, shiftCount: 1 });
+  for (const [groups, expected] of [
+    [[day('6', '42.60')], { status: 'available', earningsPerHour: '42.60', days: [day('6', '42.60')] }],
+    [[day('7', '42.60'), day('1', '42.60'), day('2', '20.00')],
+      { status: 'available', earningsPerHour: '42.60', days: [day('1', '42.60'), day('7', '42.60')] }],
+    [[day('1', '0.00'), day('6', '0.00')], { status: 'all_zero', earningsPerHour: '0.00', days: [] }],
+    [[], { status: 'no_data', earningsPerHour: null, days: [] }],
+    [[day('1', null, 0)], { status: 'no_data', earningsPerHour: null, days: [] }],
+  ]) {
+    const service = createAnalyticsService({ async details() {
+      return { weekdays: [], startTimes: [], rankingWeekdays: groups };
+    } });
+    const result = await service.details(42);
+    assert.deepEqual(result.bestWeekdays, expected);
+    assert.equal(Object.hasOwn(result, 'rankingWeekdays'), false);
+  }
+});
+
+test('details forwards SQL group ratios and keeps best weekdays global with the selected financial mode', async () => {
+  const calls = [];
+  const ranking = [{ key: '1', shiftCount: 2, totalHours: 8, earningsPerHour: '40.00' }];
+  const globalGroup = { key: '1', shiftCount: 2, totalHours: 8, totalOrders: 20,
+    ordersPerHour: '2.50', earningsPerHour: '40.00', totalEarnings: '320.00', earningsPerOrder: '16.00' };
+  const service = createAnalyticsService({ async details(...args) {
+    calls.push(args);
+    const group = args[3] === 'all' ? globalGroup : { ...globalGroup, totalHours: null,
+      ordersPerHour: null, earningsPerHour: null };
+    return { weekdays: [group], startTimes: [], rankingWeekdays: ranking };
+  } }, () => new Date('2026-11-02T12:00:00Z'), {
+    async get() { return { netProfile: 'custom', deductionRate: '0.20000' }; },
+  });
+  for (const platform of ['all', 'glovo']) {
+    const result = await service.details(42, 'all', platform, 'estimated_net');
+    assert.deepEqual(result.bestWeekdays.days, ranking);
+    assert.equal(result.weekdays[0].ordersPerHour, platform === 'all' ? '2.50' : null);
+    assert.equal(result.weekdays[0].totalHours, platform === 'all' ? 8 : null);
+    assert.equal(calls.at(-1)[4], '0.20000');
+  }
 });
 
 test('calendar summary forwards NUMERIC comparison results and uses one clock and net profile for both windows', async () => {
