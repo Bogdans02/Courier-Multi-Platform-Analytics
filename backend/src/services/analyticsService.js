@@ -1,22 +1,6 @@
-import { validateSummaryPeriod, validateAnalyticsPlatform, validateEarningsMode } from '../validators/analyticsValidator.js';
+import { validateAnalyticsPlatform, validateEarningsMode } from '../validators/analyticsValidator.js';
 import { httpError } from '../utils/httpError.js';
-
-function periodBounds(value, to) {
-  const period = validateSummaryPeriod(value);
-  if (period === 'current_week') {
-    const date = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Warsaw',
-      year: 'numeric', month: '2-digit', day: '2-digit' }).format(to);
-    const monday = new Date(`${date}T00:00:00Z`);
-    monday.setUTCDate(monday.getUTCDate() - (monday.getUTCDay() + 6) % 7);
-    // Monday has no DST transition in Warsaw. Convert its local midnight to UTC.
-    const offsetHours = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Warsaw',
-      hour: '2-digit', hourCycle: 'h23' }).format(monday));
-    monday.setUTCHours(-offsetHours);
-    return { period, from: monday, to };
-  }
-  const days = { week: 7, month: 30, three_months: 90 }[period];
-  return { period, from: days ? new Date(to.getTime() - days * 86400000) : null, to };
-}
+import { resolveAnalyticsWindow } from './analyticsWindow.js';
 
 function emptyGroup(key) {
   return { key, shiftCount: 0, totalEarnings: '0.00', totalOrders: 0,
@@ -34,27 +18,29 @@ export function createAnalyticsService(analytics, clock = () => new Date(), sett
     return { mode, deductionRate: saved.deductionRate };
   }
   return {
-    async summary(userId, value, modeValue) {
-      const { period, from, to } = periodBounds(value, clock());
+    async summary(userId, value, modeValue, calendarQuery = {}) {
+      const { period, from, to, selection } = resolveAnalyticsWindow({ ...calendarQuery, period: value }, clock());
       const { mode, deductionRate } = await earningsSettings(userId, modeValue);
-      const row = await analytics.summary(userId, from, to, deductionRate);
+      const row = await analytics.summary(userId, from, to, deductionRate, ...(selection ? [selection] : []));
       return {
         period, mode, deductionRate: mode === 'estimated_net' ? deductionRate : null,
         from: from?.toISOString() ?? null,
         to: to.toISOString(),
+        ...(selection && { selection }),
         ...row,
         totalHours: Number(row.totalHours),
         totalOrders: Number(row.totalOrders),
       };
     },
-    async details(userId, periodValue, platformValue, modeValue) {
-      const { period, from, to } = periodBounds(periodValue, clock());
+    async details(userId, periodValue, platformValue, modeValue, calendarQuery = {}) {
+      const { period, from, to, selection } = resolveAnalyticsWindow({ ...calendarQuery, period: periodValue }, clock());
       const platform = validateAnalyticsPlatform(platformValue);
       const { mode, deductionRate } = await earningsSettings(userId, modeValue);
-      const result = await analytics.details(userId, from, to, platform, deductionRate);
+      const result = await analytics.details(userId, from, to, platform, deductionRate, ...(selection ? [selection] : []));
       return {
         period, platform, mode, deductionRate: mode === 'estimated_net' ? deductionRate : null, timeZone: 'Europe/Warsaw',
         from: from?.toISOString() ?? null, to: to.toISOString(),
+        ...(selection && { selection }),
         ...result,
         weekdays: [1, 2, 3, 4, 5, 6, 7].map((key) =>
           result.weekdays.find((row) => row.key === String(key)) ?? emptyGroup(String(key))),

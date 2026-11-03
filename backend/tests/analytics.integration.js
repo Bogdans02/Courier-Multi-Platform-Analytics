@@ -43,6 +43,7 @@ before(async () => {
 });
 
 beforeEach(async () => {
+  await pool.query('DELETE FROM expenses');
   await pool.query('DELETE FROM shifts');
   await pool.query('DELETE FROM user_settings');
 });
@@ -80,6 +81,133 @@ async function seed({ userId = owner, startedAt = new Date(anchor - day), hours 
   }
   return shift.id;
 }
+
+test('calendar summary and details share half-open Warsaw bounds, ownership and unchanged financial aggregation', async () => {
+  await request('/settings', { method: 'PUT', body: { netProfile: 'custom', deductionRate: '0.2' } });
+  const dateKey = (time) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Warsaw' }).format(new Date(time));
+  for (const [calendar, date, start, end, asOf] of [
+    ['week', '2026-03-29', '2026-03-22T23:00:00Z', '2026-03-29T22:00:00Z', '2026-03-30T12:00:00Z'],
+    ['week', '2026-10-25', '2026-10-18T22:00:00Z', '2026-10-25T23:00:00Z', '2026-10-26T12:00:00Z'],
+    ['month', '2026-09-30', '2026-08-31T22:00:00Z', '2026-09-30T22:00:00Z', '2026-10-01T12:00:00Z'],
+    ['month', '2026-10-31', '2026-09-30T22:00:00Z', '2026-10-31T23:00:00Z', '2026-11-01T12:00:00Z'],
+  ]) {
+    await pool.query('DELETE FROM expenses');
+    await pool.query('DELETE FROM shifts');
+    const startMs = Date.parse(start), endMs = Date.parse(end);
+    for (const instant of [startMs - 1, startMs, endMs - 1, endMs]) {
+      await seed({ startedAt: new Date(instant), hours: 1 / 3600000,
+        entries: [['glovo', '0.10', 1], ['wolt', '0.20', 1]] });
+      await pool.query(`INSERT INTO expenses (user_id, category, amount, expense_date)
+        VALUES ($1, 'fuel', 1, $2)`, [owner, dateKey(instant)]);
+    }
+    await seed({ userId: other, startedAt: new Date(startMs), entries: [['other', '999.00', 99]] });
+    await seed({ startedAt: new Date(startMs), entries: [], hours: 1 });
+    await seed({ startedAt: new Date(startMs), status: 'active' });
+    await pool.query(`INSERT INTO expenses (user_id, category, amount, expense_date)
+      VALUES ($1, 'fuel', 999, $2)`, [other, dateKey(startMs)]);
+    const query = new URLSearchParams({ calendar, anchor: date, asOf });
+    for (const [mode, amount] of [['gross', '0.60'], ['estimated_net', '0.48']]) {
+      query.set('mode', mode);
+      const summaryResponse = await request(`/analytics/summary?${query}`);
+      const detailsResponse = await request(`/analytics/details?${query}`);
+      assert.equal(summaryResponse.status, 200);
+      assert.equal(detailsResponse.status, 200);
+      assert.equal(summaryResponse.cache, 'no-store');
+      const s = summaryResponse.body.summary, d = detailsResponse.body.details;
+      assert.deepEqual(s.selection, d.selection);
+      assert.equal(s.selection.start, new Date(startMs).toISOString());
+      assert.equal(s.selection.endExclusive, new Date(endMs).toISOString());
+      assert.equal(s.selection.observationCutoff, s.selection.endExclusive);
+      assert.equal(s.selection.isPartial, false);
+      assert.equal(s.shiftCount, 2);
+      assert.equal(d.shiftCount, 2);
+      assert.equal(s.incompleteShiftCount, 1);
+      assert.equal(d.incompleteShiftCount, 1);
+      assert.equal(s.totalEarnings, amount);
+      assert.equal(s.totalOrders, 4);
+      assert.equal(s.totalHours, 2 / 3600000);
+      assert.equal(s.totalExpenses, '2.00');
+      assert.equal(s.expenseCount, 2);
+      assert.deepEqual(d.trend.map((row) => row.key), [dateKey(startMs), dateKey(endMs - 1)]);
+      assert.ok(d.trend.every((row) => row.totalEarnings === (mode === 'gross' ? '0.30' : '0.24')));
+      const filtered = (await request(`/analytics/details?${query}&platform=glovo`)).body.details;
+      assert.equal(filtered.shiftCount, 2);
+      assert.ok(filtered.trend.every((row) => row.earningsPerHour === null));
+      assert.deepEqual(filtered.platforms, d.platforms);
+      for (const field of ['comparison', 'bestWeekdays', 'hourlyActivity', 'availableRange']) {
+        assert.equal(Object.hasOwn(s, field), false);
+        assert.equal(Object.hasOwn(d, field), false);
+      }
+    }
+    for (const endpoint of ['summary', 'details']) {
+      query.set('mode', 'gross');
+      assert.equal((await request(`/analytics/${endpoint}?${query}`, { auth: null })).status, 401);
+      const foreign = await request(`/analytics/${endpoint}?${query}&user_id=${owner}`, { auth: otherToken });
+      assert.equal(foreign.status, 200);
+      assert.equal(foreign.body[endpoint].shiftCount, 1);
+      assert.equal(endpoint === 'summary' ? foreign.body.summary.totalEarnings : foreign.body.details.trend[0].totalEarnings, '999.00');
+    }
+  }
+});
+
+test('calendar current windows and all respect exact asOf, omit future work and keep full Warsaw expense dates', async () => {
+  const asOf = '2026-10-28T11:00:00.000Z';
+  const cutoff = Date.parse(asOf);
+  for (const [calendar, anchorDate, start] of [
+    ['week', '2026-10-30', '2026-10-25T23:00:00Z'],
+    ['month', '2026-10-31', '2026-09-30T22:00:00Z'],
+    ['all', undefined, '2026-06-01T00:00:00Z'],
+  ]) {
+    await pool.query('DELETE FROM shifts');
+    await pool.query('DELETE FROM expenses');
+    const startMs = Date.parse(start);
+    for (const instant of [startMs - 1, startMs, cutoff - 1, cutoff, cutoff + 1]) {
+      await seed({ startedAt: new Date(instant), hours: 1 / 3600000 });
+    }
+    await seed({ startedAt: new Date(cutoff - 3600000), hours: 2 });
+    for (const date of ['2026-10-28', '2026-10-29']) {
+      await pool.query(`INSERT INTO expenses (user_id, category, amount, expense_date)
+        VALUES ($1, 'phone', 1, $2)`, [owner, date]);
+    }
+    const query = new URLSearchParams({ calendar, asOf });
+    if (anchorDate) query.set('anchor', anchorDate);
+    const s = (await request(`/analytics/summary?${query}`)).body.summary;
+    const d = (await request(`/analytics/details?${query}`)).body.details;
+    assert.deepEqual(s.selection, d.selection);
+    assert.equal(s.selection.asOf, asOf);
+    assert.equal(s.selection.observationCutoff, asOf);
+    assert.equal(s.selection.isPartial, calendar !== 'all');
+    assert.equal(s.shiftCount, calendar === 'all' ? 3 : 2);
+    assert.equal(d.shiftCount, s.shiftCount);
+    assert.equal(s.totalExpenses, '1.00');
+    assert.equal(s.totalEarnings, calendar === 'all' ? '300.00' : '200.00');
+  }
+  const first = (await request('/analytics/summary?calendar=all')).body.summary;
+  const replay = (await request(`/analytics/details?calendar=all&asOf=${first.selection.asOf}`)).body.details;
+  assert.deepEqual(first.selection, replay.selection);
+  assert.equal(Object.hasOwn((await request('/analytics/summary')).body.summary, 'selection'), false);
+  assert.equal(Object.hasOwn((await request('/analytics/details?period=current_week')).body.details, 'selection'), false);
+});
+
+test('both analytics endpoints reject invalid calendar queries without changing legacy defaults', async () => {
+  for (const query of [
+    'calendar=year', 'calendar=week&period=week&anchor=2026-10-26', 'calendar=week', 'calendar=month',
+    'calendar=all&anchor=2026-10-26', 'calendar=week&anchor=2026-02-30',
+    'calendar=week&calendar=month&anchor=2026-10-26', 'calendar=all&asOf=bad',
+    `calendar=all&asOf=${new Date(Date.now() + day).toISOString()}`,
+    'calendar=week&anchor=2026-11-02&asOf=2026-10-28T11:00:00.000Z',
+    'calendar=month&anchor=2026-11-01&asOf=2026-10-28T11:00:00.000Z',
+  ]) {
+    for (const endpoint of ['summary', 'details']) {
+      assert.equal((await request(`/analytics/${endpoint}?${query}`)).status, 400, `${endpoint}?${query}`);
+    }
+  }
+  for (const endpoint of ['summary', 'details']) {
+    const result = await request(`/analytics/${endpoint}`);
+    assert.equal(result.status, 200);
+    assert.equal(result.body[endpoint].period, 'all');
+  }
+});
 
 test('settings start unconfigured, require authorization and isolate reads and writes by token owner', async () => {
   const empty = await request('/settings');

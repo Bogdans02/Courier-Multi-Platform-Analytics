@@ -1,6 +1,6 @@
 export function createAnalyticsRepository(pool) {
   return {
-    async details(userId, from, to, platform, deductionRate = '0') {
+    async details(userId, from, to, platform, deductionRate = '0', selection = null) {
       const { rows: [row] } = await pool.query(`
         WITH period_shifts AS (
           SELECT s.id, s.started_at AT TIME ZONE 'Europe/Warsaw' AS local_start,
@@ -8,6 +8,8 @@ export function createAnalyticsRepository(pool) {
           FROM shifts s
           WHERE s.user_id = $1 AND s.status = 'completed'
             AND ($2::timestamptz IS NULL OR s.started_at >= $2) AND s.started_at <= $3
+            AND ($6::timestamptz IS NULL OR s.started_at < $6)
+            AND ($7::timestamptz IS NULL OR s.ended_at <= $7)
         ), period_entries AS (
           SELECT e.shift_id, e.platform, e.orders_count,
             e.earnings_gross * (1 - $5::numeric) AS earnings_gross
@@ -60,10 +62,10 @@ export function createAnalyticsRepository(pool) {
           COALESCE((SELECT JSONB_AGG(value ORDER BY key) FROM group_results WHERE kind = 'weekdays'), '[]') AS weekdays,
           COALESCE((SELECT JSONB_AGG(value ORDER BY key) FROM group_results WHERE kind = 'startTimes'), '[]') AS "startTimes",
           COALESCE((SELECT JSONB_AGG(value ORDER BY platform) FROM platform_results), '[]') AS platforms
-      `, [userId, from, to, platform, deductionRate]);
+      `, [userId, from, to, platform, deductionRate, selection?.endExclusive ?? null, selection?.asOf ?? null]);
       return row;
     },
-    async summary(userId, from, to, deductionRate = '0') {
+    async summary(userId, from, to, deductionRate = '0', selection = null) {
       const { rows: [row] } = await pool.query(`
         WITH shift_totals AS (
           SELECT s.distance_km, EXTRACT(EPOCH FROM (s.ended_at - s.started_at)) / 3600 AS hours,
@@ -76,6 +78,8 @@ export function createAnalyticsRepository(pool) {
           WHERE s.user_id = $1 AND s.status = 'completed'
             AND ($2::timestamptz IS NULL OR s.started_at >= $2)
             AND s.started_at <= $3
+            AND ($5::timestamptz IS NULL OR s.started_at < $5)
+            AND ($6::timestamptz IS NULL OR s.ended_at <= $6)
         ), totals AS (
           SELECT COUNT(*) FILTER (WHERE earnings IS NOT NULL)::integer AS shift_count,
             COUNT(*) FILTER (WHERE earnings IS NULL)::integer AS incomplete_shift_count,
@@ -91,6 +95,7 @@ export function createAnalyticsRepository(pool) {
           WHERE user_id = $1
             AND ($2::timestamptz IS NULL OR expense_date >= ($2 AT TIME ZONE 'Europe/Warsaw')::date)
             AND expense_date <= ($3::timestamptz AT TIME ZONE 'Europe/Warsaw')::date
+            AND ($5::timestamptz IS NULL OR expense_date < ($5 AT TIME ZONE 'Europe/Warsaw')::date)
         )
         SELECT shift_count AS "shiftCount", incomplete_shift_count AS "incompleteShiftCount",
           expense_totals.count AS "expenseCount", ROUND(expense_totals.amount, 2)::text AS "totalExpenses",
@@ -103,7 +108,7 @@ export function createAnalyticsRepository(pool) {
           ROUND(orders / NULLIF(hours, 0), 2)::text AS "ordersPerHour",
           ROUND(earnings / NULLIF(orders, 0), 2)::text AS "earningsPerOrder"
         FROM totals CROSS JOIN expense_totals
-      `, [userId, from, to, deductionRate]);
+      `, [userId, from, to, deductionRate, selection?.endExclusive ?? null, selection?.asOf ?? null]);
       return row;
     },
   };
