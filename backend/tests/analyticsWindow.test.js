@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { validateCalendarSelection, validateSummaryPeriod } from '../src/validators/analyticsValidator.js';
-import { resolveAnalyticsWindow } from '../src/services/analyticsWindow.js';
+import { resolveAnalyticsWindow, resolvePreviousWindow } from '../src/services/analyticsWindow.js';
 import { createAnalyticsService } from '../src/services/analyticsService.js';
 
 const now = new Date('2026-11-05T12:34:56.789Z');
@@ -114,8 +114,74 @@ test('both analytics methods use the same selection mechanism and read the serve
   const details = await service.details(42, undefined, 'all', 'gross', { ...query, asOf: summary.selection.asOf });
   assert.equal(clockReads, 2);
   assert.deepEqual(summary.selection, details.selection);
-  assert.equal(calls[0].at(-1), summary.selection);
+  assert.equal(calls[0][4], summary.selection);
+  assert.deepEqual(calls[0][5], summary.comparison.previousWindow);
   assert.equal(calls[1].at(-1), details.selection);
   assert.equal(summary.selection.asOf, now.toISOString());
   assert.equal(Object.hasOwn(await service.summary(42, 'all'), 'selection'), false);
+});
+
+function previous(calendar, anchor, asOf) {
+  return resolvePreviousWindow(resolveAnalyticsWindow({ calendar, anchor }, new Date(asOf)).selection);
+}
+
+test('previous historical windows use complete calendar weeks and real months, including January to December', () => {
+  for (const [calendar, anchor, start, end] of [
+    ['week', '2026-10-26', '2026-10-18T22:00:00.000Z', '2026-10-25T23:00:00.000Z'],
+    ['month', '2026-03-01', '2026-01-31T23:00:00.000Z', '2026-02-28T23:00:00.000Z'],
+    ['month', '2024-03-01', '2024-01-31T23:00:00.000Z', '2024-02-29T23:00:00.000Z'],
+    ['month', '2026-01-01', '2025-11-30T23:00:00.000Z', '2025-12-31T23:00:00.000Z'],
+  ]) {
+    const result = previous(calendar, anchor, '2026-11-10T12:00:00Z');
+    assert.equal(result.start, start);
+    assert.equal(result.endExclusive, end);
+    assert.equal(result.observationCutoff, end);
+    assert.equal(result.isPartial, false);
+    assert.equal(result.monthEndClamped, false);
+    assert.equal(result.dstAdjustment, null);
+  }
+});
+
+test('partial week maps the same local weekday and time, preserving seconds and milliseconds across DST', () => {
+  const regular = previous('week', '2026-11-04', '2026-11-04T14:30:45.123Z');
+  assert.equal(regular.observationCutoff, '2026-10-28T14:30:45.123Z');
+  assert.equal(regular.isPartial, true);
+  const dst = previous('week', '2026-10-28', '2026-10-28T14:30:45.123Z');
+  assert.equal(dst.observationCutoff, '2026-10-21T13:30:45.123Z');
+  assert.equal(dst.dstAdjustment, null); // Different offsets are not a correction of a missing/repeated time.
+});
+
+test('partial month maps calendar day and local clock, saturating absent days to the shorter month end', () => {
+  for (const [asOf, anchor, cutoff, clamped] of [
+    ['2026-11-02T14:00:12.345Z', '2026-11-01', '2026-10-02T13:00:12.345Z', false],
+    ['2026-03-31T13:00:00Z', '2026-03-01', '2026-02-28T23:00:00.000Z', true],
+    ['2024-03-31T13:00:00Z', '2024-03-01', '2024-02-29T23:00:00.000Z', true],
+    ['2026-05-31T13:00:00Z', '2026-05-01', '2026-04-30T22:00:00.000Z', true],
+    ['2026-04-30T13:00:00Z', '2026-04-01', '2026-03-30T13:00:00.000Z', false],
+    ['2026-01-02T14:00:00Z', '2026-01-01', '2025-12-02T14:00:00.000Z', false],
+  ]) {
+    const result = previous('month', anchor, asOf);
+    assert.equal(result.observationCutoff, cutoff);
+    assert.equal(result.monthEndClamped, clamped);
+    assert.equal(result.isPartial, !clamped);
+  }
+});
+
+test('partial week and month follow DEC-031 for missing and repeated Warsaw local times', () => {
+  for (const [calendar, anchor, asOf, cutoff, adjustment] of [
+    ['week', '2026-04-05', '2026-04-05T00:30:15.123Z', '2026-03-29T01:30:15.123Z', 'nonexistent_time_shifted_forward'],
+    ['month', '2026-04-01', '2026-04-29T00:30:15.123Z', '2026-03-29T01:30:15.123Z', 'nonexistent_time_shifted_forward'],
+    ['week', '2026-11-01', '2026-11-01T01:30:15.123Z', '2026-10-25T00:30:15.123Z', 'repeated_time_earlier'],
+    ['month', '2026-11-01', '2026-11-25T01:30:15.123Z', '2026-10-25T00:30:15.123Z', 'repeated_time_earlier'],
+  ]) {
+    const result = previous(calendar, anchor, asOf);
+    assert.equal(result.observationCutoff, cutoff);
+    assert.equal(result.dstAdjustment, adjustment);
+    assert.ok(result.observationCutoff <= result.endExclusive);
+  }
+});
+
+test('all and legacy selections have no previous window', () => {
+  assert.equal(resolvePreviousWindow(resolveAnalyticsWindow({ calendar: 'all' }, now).selection), null);
+  assert.equal(resolvePreviousWindow(resolveAnalyticsWindow({ period: 'all' }, now).selection), null);
 });

@@ -6,15 +6,76 @@ const localDate = new Intl.DateTimeFormat('en-CA', {
   timeZone, year: 'numeric', month: '2-digit', day: '2-digit',
 });
 const localOffset = new Intl.DateTimeFormat('en-GB', { timeZone, timeZoneName: 'longOffset' });
+const localTime = new Intl.DateTimeFormat('en-GB', {
+  timeZone, hour: '2-digit', minute: '2-digit', second: '2-digit',
+  fractionalSecondDigits: 3, hourCycle: 'h23',
+});
 
-function warsawMidnight(date) {
-  const midnight = new Date(`${date}T00:00:00.000Z`);
-  // This UTC value is only a calendar-date container. Apply Warsaw's offset
-  // separately for each boundary, so a DST week is not assumed to have 168 hours.
-  const offset = localOffset.formatToParts(midnight).find((part) => part.type === 'timeZoneName').value;
+function offsetMilliseconds(instant) {
+  const offset = localOffset.formatToParts(instant).find((part) => part.type === 'timeZoneName').value;
   const [, sign, hours, minutes, seconds = '0'] = offset.match(/^GMT([+-])(\d{2}):(\d{2})(?::(\d{2}))?$/);
   const offsetSeconds = (Number(hours) * 3600 + Number(minutes) * 60 + Number(seconds)) * (sign === '+' ? 1 : -1);
-  return new Date(midnight.getTime() - offsetSeconds * 1000);
+  return offsetSeconds * 1000;
+}
+
+// UTC Dates here are containers for local calendar components, not real instants.
+function wallTime(instant) {
+  const parts = Object.fromEntries(localTime.formatToParts(instant).map(({ type, value }) => [type, value]));
+  return new Date(`${localDate.format(instant)}T${parts.hour}:${parts.minute}:${parts.second}.${parts.fractionalSecond}Z`);
+}
+
+function warsawTime(wall) {
+  // Inspect offsets on both sides of the target date using the same Intl mechanism
+  // as calendar boundaries. A repeated time has two matches; a gap has none.
+  const offsets = new Set([-1, 0, 1].map(days => offsetMilliseconds(new Date(wall.getTime() + days * 86400000))));
+  const candidates = [...offsets].map(offset => new Date(wall.getTime() - offset)).sort((a, b) => a - b);
+  const matches = candidates.filter(instant => wallTime(instant).getTime() === wall.getTime());
+  if (matches.length) return { instant: matches[0], dstAdjustment: matches.length > 1 ? 'repeated_time_earlier' : null };
+  // DEC-031: shift a nonexistent time forward by the gap, preserving minutes.
+  const instant = candidates.find(candidate => wallTime(candidate) > wall);
+  return { instant, dstAdjustment: 'nonexistent_time_shifted_forward' };
+}
+
+function warsawMidnight(date) {
+  return warsawTime(new Date(`${date}T00:00:00.000Z`)).instant;
+}
+
+export function resolvePreviousWindow(selection) {
+  if (!selection || selection.kind === 'all') return null;
+  const { kind, anchor, asOf, isPartial } = selection;
+  const date = new Date(`${anchor}T00:00:00.000Z`);
+  if (kind === 'week') date.setUTCDate(date.getUTCDate() - 7);
+  else date.setUTCMonth(date.getUTCMonth() - 1);
+  const previousAnchor = date.toISOString().slice(0, 10);
+  const endExclusive = new Date(selection.start);
+  let cutoff = endExclusive;
+  let monthEndClamped = false;
+  let dstAdjustment = null;
+  if (isPartial) {
+    const target = wallTime(new Date(selection.observationCutoff));
+    if (kind === 'week') target.setUTCDate(target.getUTCDate() - 7);
+    else {
+      const day = target.getUTCDate();
+      target.setUTCDate(1);
+      target.setUTCMonth(target.getUTCMonth() - 1);
+      const monthEnd = new Date(date);
+      monthEnd.setUTCMonth(monthEnd.getUTCMonth() + 1);
+      monthEnd.setUTCDate(0);
+      const lastDay = monthEnd.getUTCDate();
+      monthEndClamped = day > lastDay;
+      if (!monthEndClamped) target.setUTCDate(day);
+    }
+    if (!monthEndClamped) {
+      const mapped = warsawTime(target);
+      cutoff = mapped.instant < endExclusive ? mapped.instant : endExclusive;
+      dstAdjustment = mapped.dstAdjustment;
+    }
+  }
+  return {
+    kind, anchor: previousAnchor, timeZone, start: warsawMidnight(previousAnchor).toISOString(),
+    endExclusive: endExclusive.toISOString(), observationCutoff: cutoff.toISOString(), asOf,
+    isPartial: cutoff < endExclusive, monthEndClamped, dstAdjustment,
+  };
 }
 
 // Keep the legacy inclusive bounds, including Start's current_week, unchanged.

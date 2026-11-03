@@ -82,6 +82,217 @@ async function seed({ userId = owner, startedAt = new Date(anchor - day), hours 
   return shift.id;
 }
 
+const mainKpis = ['totalEarnings', 'totalHours', 'totalOrders', 'earningsPerHour', 'earningsPerKm', 'ordersPerHour'];
+
+async function calendarSummary(calendar, anchorDate, asOf, mode = 'gross', auth = token) {
+  const query = new URLSearchParams({ calendar, asOf, mode });
+  if (anchorDate) query.set('anchor', anchorDate);
+  const response = await request(`/analytics/summary?${query}`, { auth });
+  assert.equal(response.status, 200);
+  return response.body.summary;
+}
+
+test('full week compares all six KPIs with matching distance subsets, final orders, one duration and owner net profile', async () => {
+  await request('/settings', { method: 'PUT', body: { netProfile: 'custom', deductionRate: '0.2' } });
+  const tracked = await seed({ startedAt: new Date('2026-10-19T08:00:00Z'), hours: 6, distance: '60',
+    entries: [['glovo', '160', 8], ['wolt', '80', 4]] });
+  await seed({ startedAt: new Date('2026-10-20T08:00:00Z'), hours: 2, entries: [['glovo', '160', 8]] });
+  await seed({ startedAt: new Date('2026-10-12T08:00:00Z'), hours: 2, distance: '20',
+    entries: [['glovo', '60', 3], ['wolt', '40', 1]] });
+  await seed({ startedAt: new Date('2026-10-13T08:00:00Z'), hours: 2, entries: [['glovo', '100', 6]] });
+  await seed({ userId: other, startedAt: new Date('2026-10-19T08:00:00Z'), entries: [['glovo', '900', 90]] });
+  await seed({ userId: other, startedAt: new Date('2026-10-12T08:00:00Z'), entries: [['glovo', '300', 30]] });
+  await pool.query(`INSERT INTO order_events (shift_id, platform, clicked_at) VALUES ($1, 'glovo', $2)`,
+    [tracked, '2026-10-19T09:00:00Z']); // One registration must not replace the 20 final orders.
+  for (const [mode, currentMoney, previousMoney] of [
+    ['gross', ['400.00', '50.00', '4.00'], ['200.00', '50.00', '5.00']],
+    ['estimated_net', ['320.00', '40.00', '3.20'], ['160.00', '40.00', '4.00']],
+  ]) {
+    const result = await calendarSummary('week', '2026-10-19', '2026-11-02T12:00:00Z', mode);
+    const current = [currentMoney[0], 8, 20, currentMoney[1], currentMoney[2], '2.50'];
+    const previous = [previousMoney[0], 4, 10, previousMoney[1], previousMoney[2], '2.50'];
+    const percentages = ['100.0', '100.0', '100.0', '0.0', '-20.0', '0.0'];
+    assert.equal(result.shiftCount, 2);
+    assert.equal(result.distanceShiftCount, 1);
+    assert.equal(result.comparison.previousShiftCount, 2);
+    assert.equal(result.comparison.previousDistanceShiftCount, 1);
+    assert.deepEqual(Object.keys(result.comparison.metrics).sort(), [...mainKpis].sort());
+    for (const [i, key] of mainKpis.entries()) {
+      assert.equal(result[key], current[i], key);
+      assert.deepEqual(result.comparison.metrics[key], { previousValue: previous[i],
+        changePercent: percentages[i], reason: null }, key);
+    }
+  }
+  const foreign = await calendarSummary('week', '2026-10-19', '2026-11-02T12:00:00Z', 'gross', otherToken);
+  assert.equal(foreign.totalEarnings, '900.00');
+  assert.deepEqual(foreign.comparison.metrics.totalEarnings,
+    { previousValue: '300.00', changePercent: '200.0', reason: null });
+  const forged = await request('/analytics/summary?calendar=week&anchor=2026-10-19&asOf=2026-11-02T12:00:00Z&user_id=' + other);
+  assert.equal(forged.body.summary.comparison.metrics.totalEarnings.previousValue, '200.00');
+  await request('/settings', { method: 'PUT', body: { netProfile: 'custom', deductionRate: '0' } });
+  const netZeroRate = await calendarSummary('week', '2026-10-19', '2026-11-02T12:00:00Z', 'estimated_net');
+  const gross = await calendarSummary('week', '2026-10-19', '2026-11-02T12:00:00Z');
+  assert.deepEqual(netZeroRate.comparison, gross.comparison);
+});
+
+test('partial week uses local Wednesday cutoff across DST and excludes shifts ending later on both sides', async () => {
+  const asOf = '2026-10-28T14:30:00Z'; // Warsaw Wednesday 15:30; previous Wednesday uses CEST.
+  for (const [time, hours, earnings] of [
+    ['2026-10-26T08:00:00Z', 2, '100'],
+    ['2026-10-28T13:30:00Z', 1, '50'], // Ends exactly at current cutoff.
+    ['2026-10-28T14:00:00Z', 1, '999'],
+    ['2026-10-28T15:00:00Z', 1, '999'],
+    ['2026-10-19T08:00:00Z', 2, '50'],
+    ['2026-10-21T12:30:00Z', 1, '25'], // Ends exactly at previous cutoff (13:30Z).
+    ['2026-10-21T13:00:00Z', 1, '999'],
+    ['2026-10-21T14:00:00Z', 1, '999'],
+  ]) await seed({ startedAt: new Date(time), hours, distance: '10', entries: [['glovo', earnings, 3]] });
+  const result = await calendarSummary('week', '2026-10-26', asOf);
+  assert.equal(result.comparison.previousWindow.observationCutoff, '2026-10-21T13:30:00.000Z');
+  assert.equal(result.comparison.previousWindow.isPartial, true);
+  assert.equal(result.shiftCount, 2);
+  assert.equal(result.totalHours, 3);
+  assert.equal(result.totalEarnings, '150.00');
+  assert.equal(result.comparison.previousShiftCount, 2);
+  assert.deepEqual(result.comparison.metrics.totalEarnings,
+    { previousValue: '75.00', changePercent: '100.0', reason: null });
+});
+
+test('full months keep actual lengths and whole start cohorts, including shifts crossing the final midnight', async () => {
+  for (const [time, hours, earnings] of [
+    ['2026-02-01T08:00:00Z', 2, '100'],
+    ['2026-02-28T22:00:00Z', 2, '100'], // Ends in March, but belongs wholly to February.
+    ['2026-03-01T08:00:00Z', 2, '100'],
+    ['2026-03-31T21:00:00Z', 2, '200'], // Ends in April, but belongs wholly to March.
+  ]) await seed({ startedAt: new Date(time), hours, distance: '10', entries: [['glovo', earnings, 2]] });
+  const result = await calendarSummary('month', '2026-03-01', '2026-04-02T12:00:00Z');
+  assert.equal(result.selection.isPartial, false);
+  assert.equal(result.comparison.previousWindow.isPartial, false);
+  assert.equal(result.comparison.previousWindow.start, '2026-01-31T23:00:00.000Z');
+  assert.equal(result.comparison.previousWindow.endExclusive, '2026-02-28T23:00:00.000Z');
+  assert.equal(result.shiftCount, 2);
+  assert.equal(result.totalEarnings, '300.00');
+  assert.equal(result.totalHours, 4);
+  assert.equal(result.comparison.previousShiftCount, 2);
+  assert.deepEqual(result.comparison.metrics.totalEarnings,
+    { previousValue: '200.00', changePercent: '50.0', reason: null });
+  assert.equal(result.comparison.metrics.totalHours.previousValue, 4);
+});
+
+test('partial month uses the same local day and clock rather than a fraction of month length', async () => {
+  for (const [time, hours, earnings] of [
+    ['2026-11-02T13:00:00Z', 1, '200'], // 14:00 -> 15:00 Warsaw.
+    ['2026-11-02T13:30:00Z', 1, '999'],
+    ['2026-10-02T12:00:00Z', 1, '100'], // 14:00 -> 15:00 Warsaw.
+    ['2026-10-02T12:30:00Z', 1, '999'],
+    ['2026-10-03T12:00:00Z', 1, '999'],
+  ]) await seed({ startedAt: new Date(time), hours, entries: [['glovo', earnings, 2]] });
+  const result = await calendarSummary('month', '2026-11-01', '2026-11-02T14:00:00Z');
+  assert.equal(result.comparison.previousWindow.observationCutoff, '2026-10-02T13:00:00.000Z');
+  assert.equal(result.shiftCount, 1);
+  assert.equal(result.totalEarnings, '200.00');
+  assert.equal(result.comparison.previousShiftCount, 1);
+  assert.deepEqual(result.comparison.metrics.totalEarnings,
+    { previousValue: '100.00', changePercent: '100.0', reason: null });
+});
+
+test('March 31 saturates at February end but still requires completion by that cutoff for the partial comparison', async () => {
+  await seed({ startedAt: new Date('2026-03-01T08:00:00Z'), entries: [['glovo', '100', 5]] });
+  await seed({ startedAt: new Date('2026-02-28T21:00:00Z'), hours: 2, entries: [['glovo', '50', 2]] });
+  await seed({ startedAt: new Date('2026-02-28T22:00:00Z'), hours: 2, entries: [['glovo', '999', 99]] });
+  const result = await calendarSummary('month', '2026-03-01', '2026-03-31T13:00:00Z');
+  const previous = result.comparison.previousWindow;
+  assert.equal(previous.monthEndClamped, true);
+  assert.equal(previous.isPartial, false);
+  assert.equal(previous.observationCutoff, '2026-02-28T23:00:00.000Z');
+  assert.equal(result.comparison.previousShiftCount, 1);
+  assert.deepEqual(result.comparison.metrics.totalEarnings,
+    { previousValue: '50.00', changePercent: '100.0', reason: null });
+});
+
+test('comparison percentages use unrounded NUMERIC sums and ratios, including estimated net', async () => {
+  await request('/settings', { method: 'PUT', body: { netProfile: 'custom', deductionRate: '0.1872' } });
+  await seed({ startedAt: new Date('2026-10-19T08:00:00Z'), hours: 3, distance: '3', entries: [['glovo', '0.02', 2]] });
+  await seed({ startedAt: new Date('2026-10-12T08:00:00Z'), hours: 3, distance: '3', entries: [['glovo', '0.01', 1]] });
+  for (const mode of ['gross', 'estimated_net']) {
+    const result = await calendarSummary('week', '2026-10-19', '2026-11-02T12:00:00Z', mode);
+    for (const key of ['totalEarnings', 'earningsPerHour', 'earningsPerKm', 'totalOrders', 'ordersPerHour']) {
+      assert.equal(result.comparison.metrics[key].changePercent, '100.0', key);
+    }
+    // Even a displayed previous rate of 0.00 is a valid nonzero raw base.
+    assert.equal(result.comparison.metrics.earningsPerHour.previousValue, '0.00');
+    assert.equal(result.comparison.metrics.earningsPerHour.reason, null);
+  }
+  await pool.query(`UPDATE shift_platform_entries e SET earnings_gross =
+    CASE WHEN s.started_at = '2026-10-19T08:00:00Z' THEN 0.01 ELSE 0.03 END
+    FROM shifts s WHERE e.shift_id = s.id`);
+  for (const mode of ['gross', 'estimated_net']) {
+    const result = await calendarSummary('week', '2026-10-19', '2026-11-02T12:00:00Z', mode);
+    for (const key of ['totalEarnings', 'earningsPerHour', 'earningsPerKm']) {
+      assert.equal(result.comparison.metrics[key].changePercent, '-66.7', key);
+    }
+  }
+});
+
+test('comparison distinguishes real zeros, missing observations, undefined ratios and zero previous bases', async () => {
+  const currentId = await seed({ startedAt: new Date('2026-10-19T08:00:00Z'), distance: '0', entries: [['glovo', '0', 0]] });
+  const previousId = await seed({ startedAt: new Date('2026-10-12T08:00:00Z'), distance: '10', entries: [['glovo', '100', 5]] });
+  const read = () => calendarSummary('week', '2026-10-19', '2026-11-02T12:00:00Z');
+  let result = await read();
+  for (const key of ['totalEarnings', 'totalOrders', 'earningsPerHour', 'ordersPerHour']) {
+    assert.equal(result.comparison.metrics[key].changePercent, '-100.0');
+    assert.equal(result.comparison.metrics[key].reason, null);
+  }
+  assert.deepEqual(result.comparison.metrics.earningsPerKm,
+    { previousValue: '10.00', changePercent: null, reason: 'undefined_metric' });
+  await pool.query('UPDATE shifts SET distance_km = NULL, distance_source = NULL WHERE id = $1', [currentId]);
+  assert.equal((await read()).comparison.metrics.earningsPerKm.reason, 'no_current_observations');
+  await pool.query("UPDATE shifts SET distance_km = 10, distance_source = 'manual' WHERE id = $1", [currentId]);
+  await pool.query('UPDATE shifts SET distance_km = 0 WHERE id = $1', [previousId]);
+  assert.deepEqual((await read()).comparison.metrics.earningsPerKm,
+    { previousValue: null, changePercent: null, reason: 'undefined_metric' });
+  await pool.query('UPDATE shifts SET distance_km = NULL, distance_source = NULL WHERE id = $1', [previousId]);
+  assert.equal((await read()).comparison.metrics.earningsPerKm.reason, 'no_previous_observations');
+  await pool.query('UPDATE shift_platform_entries SET earnings_gross = 0, orders_count = 0 WHERE shift_id = $1', [previousId]);
+  result = await read();
+  assert.deepEqual(result.comparison.metrics.totalEarnings,
+    { previousValue: '0.00', changePercent: null, reason: 'previous_zero' });
+  await pool.query('UPDATE shift_platform_entries SET earnings_gross = 100 WHERE shift_id = $1', [currentId]);
+  assert.equal((await read()).comparison.metrics.totalEarnings.changePercent, null); // No artificial +100%.
+  await pool.query('DELETE FROM shifts WHERE id = $1', [previousId]);
+  result = await read();
+  for (const key of mainKpis.filter(key => key !== 'earningsPerKm')) {
+    assert.equal(result.comparison.metrics[key].reason, 'no_previous_observations');
+    assert.equal(result.comparison.metrics[key].changePercent, null);
+  }
+  await pool.query('DELETE FROM shifts WHERE id = $1', [currentId]);
+  await seed({ startedAt: new Date('2026-10-12T08:00:00Z') });
+  result = await read();
+  assert.equal(result.totalEarnings, '0.00');
+  assert.equal(result.comparison.metrics.totalEarnings.reason, 'no_current_observations');
+  assert.equal(result.comparison.metrics.totalEarnings.changePercent, null);
+});
+
+test('100 percent deductions give genuine financial zero bases, while all and legacy clients have no comparison', async () => {
+  await seed({ startedAt: new Date('2026-10-19T08:00:00Z'), distance: '10' });
+  await seed({ startedAt: new Date('2026-10-12T08:00:00Z'), distance: '10' });
+  await request('/settings', { method: 'PUT', body: { netProfile: 'custom', deductionRate: '1' } });
+  const net = await calendarSummary('week', '2026-10-19', '2026-11-02T12:00:00Z', 'estimated_net');
+  for (const key of ['totalEarnings', 'earningsPerHour', 'earningsPerKm']) {
+    assert.equal(net[key], '0.00');
+    assert.deepEqual(net.comparison.metrics[key], { previousValue: '0.00', changePercent: null, reason: 'previous_zero' });
+  }
+  assert.equal(net.comparison.metrics.ordersPerHour.changePercent, '0.0');
+  const all = await calendarSummary('all', undefined, '2026-11-02T12:00:00Z');
+  assert.equal(all.comparison, null);
+  for (const period of ['week', 'month', 'three_months', 'all', 'current_week']) {
+    const legacy = await request(`/analytics/summary?period=${period}`);
+    assert.equal(legacy.status, 200);
+    assert.equal(Object.hasOwn(legacy.body.summary, 'comparison'), false);
+    assert.equal(Object.hasOwn(legacy.body.summary, 'selection'), false);
+  }
+});
+
 test('calendar summary and details share half-open Warsaw bounds, ownership and unchanged financial aggregation', async () => {
   await request('/settings', { method: 'PUT', body: { netProfile: 'custom', deductionRate: '0.2' } });
   const dateKey = (time) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Warsaw' }).format(new Date(time));
@@ -135,7 +346,7 @@ test('calendar summary and details share half-open Warsaw bounds, ownership and 
       assert.ok(filtered.trend.every((row) => row.earningsPerHour === null));
       assert.deepEqual(filtered.platforms, d.platforms);
       for (const field of ['comparison', 'bestWeekdays', 'hourlyActivity', 'availableRange']) {
-        assert.equal(Object.hasOwn(s, field), false);
+        assert.equal(Object.hasOwn(s, field), field === 'comparison');
         assert.equal(Object.hasOwn(d, field), false);
       }
     }

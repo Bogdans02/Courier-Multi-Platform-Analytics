@@ -65,31 +65,61 @@ export function createAnalyticsRepository(pool) {
       `, [userId, from, to, platform, deductionRate, selection?.endExclusive ?? null, selection?.asOf ?? null]);
       return row;
     },
-    async summary(userId, from, to, deductionRate = '0', selection = null) {
+    async summary(userId, from, to, deductionRate = '0', selection = null, previousWindow = null) {
+      // The current selection decides whether this is a partial comparison, even
+      // when the shorter previous month was saturated to its full calendar end.
+      const previousEndedCutoff = selection?.isPartial ? previousWindow?.observationCutoff : selection?.asOf;
       const { rows: [row] } = await pool.query(`
-        WITH shift_totals AS (
-          SELECT s.distance_km, EXTRACT(EPOCH FROM (s.ended_at - s.started_at)) / 3600 AS hours,
+        WITH windows AS (
+          SELECT 'current' AS key, $2::timestamptz AS start, $3::timestamptz AS cutoff,
+            $5::timestamptz AS end_exclusive, $6::timestamptz AS ended_cutoff
+          UNION ALL
+          SELECT 'previous', $7::timestamptz, $8::timestamptz, $9::timestamptz, $10::timestamptz
+          WHERE $7::timestamptz IS NOT NULL
+        ), shift_totals AS (
+          SELECT w.key, s.distance_km, EXTRACT(EPOCH FROM (s.ended_at - s.started_at)) / 3600 AS hours,
             entries.earnings * (1 - $4::numeric) AS earnings, entries.orders
-          FROM shifts s
+          FROM windows w JOIN shifts s ON s.user_id = $1 AND s.status = 'completed'
+            AND (w.start IS NULL OR s.started_at >= w.start) AND s.started_at <= w.cutoff
+            AND (w.end_exclusive IS NULL OR s.started_at < w.end_exclusive)
+            AND (w.ended_cutoff IS NULL OR s.ended_at <= w.ended_cutoff)
           LEFT JOIN (
             SELECT e.shift_id, SUM(e.earnings_gross) AS earnings, SUM(e.orders_count) AS orders
             FROM shift_platform_entries e GROUP BY e.shift_id
           ) entries ON entries.shift_id = s.id
-          WHERE s.user_id = $1 AND s.status = 'completed'
-            AND ($2::timestamptz IS NULL OR s.started_at >= $2)
-            AND s.started_at <= $3
-            AND ($5::timestamptz IS NULL OR s.started_at < $5)
-            AND ($6::timestamptz IS NULL OR s.ended_at <= $6)
         ), totals AS (
-          SELECT COUNT(*) FILTER (WHERE earnings IS NOT NULL)::integer AS shift_count,
-            COUNT(*) FILTER (WHERE earnings IS NULL)::integer AS incomplete_shift_count,
+          SELECT w.key, COUNT(*) FILTER (WHERE earnings IS NOT NULL)::integer AS shift_count,
+            COUNT(*) FILTER (WHERE s.key IS NOT NULL AND earnings IS NULL)::integer AS incomplete_shift_count,
             COUNT(*) FILTER (WHERE earnings IS NOT NULL AND distance_km IS NOT NULL)::integer AS distance_shift_count,
             COALESCE(SUM(earnings), 0) AS earnings,
             COALESCE(SUM(orders), 0) AS orders,
             COALESCE(SUM(hours) FILTER (WHERE earnings IS NOT NULL), 0) AS hours,
             COALESCE(SUM(distance_km) FILTER (WHERE earnings IS NOT NULL), 0) AS distance,
             COALESCE(SUM(earnings) FILTER (WHERE distance_km IS NOT NULL), 0) AS distance_earnings
-          FROM shift_totals
+          FROM windows w LEFT JOIN shift_totals s ON s.key = w.key GROUP BY w.key
+        ), metric_values AS (
+          -- Keep unrounded NUMERIC values until the final percentage. The distance
+          -- numerator and denominator come from the same existing subset.
+          SELECT t.key AS window_key, m.* FROM totals t CROSS JOIN LATERAL (VALUES
+            ('totalEarnings', earnings, shift_count, 2),
+            ('totalHours', hours, shift_count, NULL::integer),
+            ('totalOrders', orders, shift_count, 0),
+            ('earningsPerHour', earnings / NULLIF(hours, 0), shift_count, 2),
+            ('earningsPerKm', distance_earnings / NULLIF(distance, 0), distance_shift_count, 2),
+            ('ordersPerHour', orders / NULLIF(hours, 0), shift_count, 2)
+          ) m(metric, value, observations, decimals)
+        ), comparison_values AS (
+          SELECT c.metric, p.value AS previous_value, p.decimals,
+            CASE
+              WHEN c.observations = 0 THEN 'no_current_observations'
+              WHEN p.observations = 0 THEN 'no_previous_observations'
+              WHEN c.value IS NULL OR p.value IS NULL THEN 'undefined_metric'
+              WHEN p.value = 0 THEN 'previous_zero'
+            END AS reason,
+            CASE WHEN c.observations > 0 AND p.observations > 0 AND p.value > 0
+              THEN ROUND((c.value - p.value) / p.value * 100, 1)::text END AS change_percent
+          FROM metric_values c JOIN metric_values p ON p.metric = c.metric AND p.window_key = 'previous'
+          WHERE c.window_key = 'current'
         ), expense_totals AS (
           SELECT COUNT(*)::integer AS count, COALESCE(SUM(amount), 0) AS amount FROM expenses
           WHERE user_id = $1
@@ -106,9 +136,20 @@ export function createAnalyticsRepository(pool) {
           ROUND(earnings / NULLIF(hours, 0), 2)::text AS "earningsPerHour",
           ROUND(distance_earnings / NULLIF(distance, 0), 2)::text AS "earningsPerKm",
           ROUND(orders / NULLIF(hours, 0), 2)::text AS "ordersPerHour",
-          ROUND(earnings / NULLIF(orders, 0), 2)::text AS "earningsPerOrder"
-        FROM totals CROSS JOIN expense_totals
-      `, [userId, from, to, deductionRate, selection?.endExclusive ?? null, selection?.asOf ?? null]);
+          ROUND(earnings / NULLIF(orders, 0), 2)::text AS "earningsPerOrder",
+          (SELECT JSONB_BUILD_OBJECT(
+            'previousShiftCount', p.shift_count, 'previousDistanceShiftCount', p.distance_shift_count,
+            'metrics', (SELECT JSONB_OBJECT_AGG(metric, JSONB_BUILD_OBJECT(
+              'previousValue', CASE WHEN metric = 'totalOrders' THEN TO_JSONB(previous_value::bigint)
+                WHEN decimals IS NULL THEN TO_JSONB(previous_value)
+                ELSE TO_JSONB(ROUND(previous_value, decimals)::text) END,
+              'changePercent', change_percent, 'reason', reason)) FROM comparison_values)
+          ) FROM totals p WHERE p.key = 'previous') AS comparison
+        FROM totals CROSS JOIN expense_totals WHERE totals.key = 'current'
+      `, [userId, from, to, deductionRate, selection?.endExclusive ?? null,
+        selection?.asOf ?? null, previousWindow?.start ?? null,
+        previousWindow?.observationCutoff ?? null, previousWindow?.endExclusive ?? null,
+        previousEndedCutoff ?? null]);
       return row;
     },
   };

@@ -74,3 +74,50 @@ test('details validates both filters and supplies ordered empty weekday and star
   await assert.rejects(service.details(42, 'year', 'all'), { status: 400 });
   assert.equal(calls.length, 4);
 });
+
+test('calendar summary forwards NUMERIC comparison results and uses one clock and net profile for both windows', async () => {
+  let clockReads = 0, settingsReads = 0;
+  const calls = [];
+  const metrics = {
+    totalEarnings: { previousValue: '100.00', changePercent: '25.0', reason: null },
+    totalHours: { previousValue: 10, changePercent: '-20.0', reason: null },
+    totalOrders: { previousValue: 5, changePercent: '-100.0', reason: null },
+    earningsPerHour: { previousValue: '0.00', changePercent: null, reason: 'previous_zero' },
+    earningsPerKm: { previousValue: null, changePercent: null, reason: 'undefined_metric' },
+    ordersPerHour: { previousValue: null, changePercent: null, reason: 'no_previous_observations' },
+  };
+  const service = createAnalyticsService({ async summary(...args) {
+    calls.push(args);
+    return { totalHours: '8', totalOrders: '0', comparison: { previousShiftCount: 2,
+      previousDistanceShiftCount: 1, metrics } };
+  } }, () => { clockReads++; return new Date('2026-11-04T14:30:00Z'); }, {
+    async get() { settingsReads++; return { netProfile: 'custom', deductionRate: '0.20000' }; },
+  });
+  const summary = await service.summary(42, undefined, 'estimated_net', { calendar: 'week', anchor: '2026-11-04' });
+  assert.equal(clockReads, 1);
+  assert.equal(settingsReads, 1);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][0], 42);
+  assert.equal(calls[0][3], '0.20000');
+  assert.equal(calls[0][4].asOf, calls[0][5].asOf);
+  assert.equal(summary.comparison.previousWindow.observationCutoff, '2026-10-28T14:30:00.000Z');
+  assert.deepEqual(summary.comparison.metrics, metrics);
+  assert.equal(summary.totalOrders, 0);
+  assert.equal(summary.totalHours, 8);
+  assert.equal(Object.hasOwn(summary.comparison.metrics.totalHours, 'improvement'), false);
+});
+
+test('calendar all explicitly has NULL comparison while every legacy period omits it', async () => {
+  const calls = [];
+  const service = createAnalyticsService({ async summary(...args) {
+    calls.push(args);
+    return { totalHours: '0', totalOrders: '0', comparison: null };
+  } }, () => new Date('2026-11-04T14:30:00Z'));
+  assert.equal((await service.summary(42, undefined, 'gross', { calendar: 'all' })).comparison, null);
+  assert.equal(calls[0][5], null);
+  for (const period of ['week', 'month', 'three_months', 'all', 'current_week']) {
+    const result = await service.summary(42, period);
+    assert.equal(Object.hasOwn(result, 'comparison'), false);
+    assert.equal(calls.at(-1).length, 4);
+  }
+});

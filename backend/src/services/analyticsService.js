@@ -1,6 +1,6 @@
 import { validateAnalyticsPlatform, validateEarningsMode } from '../validators/analyticsValidator.js';
 import { httpError } from '../utils/httpError.js';
-import { resolveAnalyticsWindow } from './analyticsWindow.js';
+import { resolveAnalyticsWindow, resolvePreviousWindow } from './analyticsWindow.js';
 
 function emptyGroup(key) {
   return { key, shiftCount: 0, totalEarnings: '0.00', totalOrders: 0,
@@ -21,13 +21,16 @@ export function createAnalyticsService(analytics, clock = () => new Date(), sett
     async summary(userId, value, modeValue, calendarQuery = {}) {
       const { period, from, to, selection } = resolveAnalyticsWindow({ ...calendarQuery, period: value }, clock());
       const { mode, deductionRate } = await earningsSettings(userId, modeValue);
-      const row = await analytics.summary(userId, from, to, deductionRate, ...(selection ? [selection] : []));
+      const previousWindow = resolvePreviousWindow(selection);
+      const row = await analytics.summary(userId, from, to, deductionRate, ...(selection ? [selection, previousWindow] : []));
+      const { comparison, ...values } = row;
       return {
         period, mode, deductionRate: mode === 'estimated_net' ? deductionRate : null,
         from: from?.toISOString() ?? null,
         to: to.toISOString(),
         ...(selection && { selection }),
-        ...row,
+        ...values,
+        ...(selection && { comparison: previousWindow ? { previousWindow, ...comparison } : null }),
         totalHours: Number(row.totalHours),
         totalOrders: Number(row.totalOrders),
       };
