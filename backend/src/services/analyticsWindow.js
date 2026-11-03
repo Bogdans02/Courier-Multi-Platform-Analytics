@@ -40,6 +40,51 @@ function warsawMidnight(date) {
   return warsawTime(new Date(`${date}T00:00:00.000Z`)).instant;
 }
 
+export function warsawBucketKey(instant) {
+  const hour = localTime.formatToParts(instant).find(part => part.type === 'hour').value;
+  return String(Math.floor(Number(hour) / 2));
+}
+
+export function dateFromMicroseconds(value) {
+  // Floor also before the Unix epoch; BigInt division alone truncates toward zero.
+  return new Date(Number(value / 1000n - (value % 1000n < 0n ? 1n : 0n)));
+}
+
+export function intersectWarsawBuckets(startUs, endUs) {
+  const totals = Array(12).fill(0n);
+  if (endUs <= startUs) return totals;
+  const start = dateFromMicroseconds(startUs), end = dateFromMicroseconds(endUs);
+  const day = new Date(`${localDate.format(start)}T00:00:00.000Z`);
+  const lastDay = new Date(`${localDate.format(end)}T00:00:00.000Z`);
+  const boundaries = new Set([startUs, endUs]);
+  while (day <= lastDay) {
+    // Resolve local clock boundaries individually; a bucket can last 1, 2 or 3
+    // real hours. Reuse the same missing/repeated-time policy as calendar windows.
+    const instants = Array.from({ length: 13 }, (_, i) =>
+      warsawTime(new Date(day.getTime() + i * 7200000)).instant.getTime());
+    for (const instant of instants) boundaries.add(BigInt(instant) * 1000n);
+    let low = instants[0], high = instants[12] - 1;
+    const offset = offsetMilliseconds(new Date(low));
+    if (offset !== offsetMilliseconds(new Date(high))) {
+      // Split the real axis at the offset transition as well as clock boundaries.
+      while (high - low > 1) {
+        const middle = Math.floor((low + high) / 2);
+        if (offsetMilliseconds(new Date(middle)) === offset) low = middle;
+        else high = middle;
+      }
+      boundaries.add(BigInt(high) * 1000n);
+    }
+    day.setUTCDate(day.getUTCDate() + 1);
+  }
+  const sorted = [...boundaries].filter(value => value >= startUs && value <= endUs)
+    .sort((a, b) => a < b ? -1 : a > b ? 1 : 0);
+  for (let i = 1; i < sorted.length; i++) {
+    const key = warsawBucketKey(dateFromMicroseconds(sorted[i - 1]));
+    totals[Number(key)] += sorted[i] - sorted[i - 1];
+  }
+  return totals;
+}
+
 export function resolvePreviousWindow(selection) {
   if (!selection || selection.kind === 'all') return null;
   const { kind, anchor, asOf, isPartial } = selection;

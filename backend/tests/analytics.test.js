@@ -14,6 +14,7 @@ test('current week begins at Warsaw Monday midnight for both analytics endpoints
     const now = new Date(instant);
     const service = createAnalyticsService({
       async summary(...args) { calls.push(args); return { totalHours: '0', totalOrders: '0' }; },
+      async hourlyGroups() { return { groups: [], bestRate: null }; },
       async details(...args) { calls.push(args); return { weekdays: [], startTimes: [] }; },
     }, () => now, { async get() { return { netProfile: 'custom', deductionRate: '0.20000' }; } });
     const summary = await service.summary(42, 'current_week', 'estimated_net');
@@ -53,7 +54,8 @@ test('summary validates the period and calculates rolling UTC bounds before quer
 test('details validates both filters and supplies ordered empty weekday and start-time groups', async () => {
   const now = new Date('2026-10-13T12:00:00Z');
   const calls = [];
-  const service = createAnalyticsService({ async details(...args) {
+  const service = createAnalyticsService({ async hourlyGroups() { return { groups: [], bestRate: null }; },
+    async details(...args) {
     calls.push(args);
     return { trend: [], months: [], weekdays: [], startTimes: [], platforms: [], shiftCount: 0 };
   } }, () => now);
@@ -92,7 +94,8 @@ test('best weekdays preserve a small sample, all rounded ties in weekday order, 
     [[], { status: 'no_data', earningsPerHour: null, days: [] }],
     [[day('1', null, 0)], { status: 'no_data', earningsPerHour: null, days: [] }],
   ]) {
-    const service = createAnalyticsService({ async details() {
+    const service = createAnalyticsService({ async hourlyGroups() { return { groups: [], bestRate: null }; },
+      async details() {
       return { weekdays: [], startTimes: [], rankingWeekdays: groups };
     } });
     const result = await service.details(42);
@@ -106,7 +109,8 @@ test('details forwards SQL group ratios and keeps best weekdays global with the 
   const ranking = [{ key: '1', shiftCount: 2, totalHours: 8, earningsPerHour: '40.00' }];
   const globalGroup = { key: '1', shiftCount: 2, totalHours: 8, totalOrders: 20,
     ordersPerHour: '2.50', earningsPerHour: '40.00', totalEarnings: '320.00', earningsPerOrder: '16.00' };
-  const service = createAnalyticsService({ async details(...args) {
+  const service = createAnalyticsService({ async hourlyGroups() { return { groups: [], bestRate: null }; },
+    async details(...args) {
     calls.push(args);
     const group = args[3] === 'all' ? globalGroup : { ...globalGroup, totalHours: null,
       ordersPerHour: null, earningsPerHour: null };

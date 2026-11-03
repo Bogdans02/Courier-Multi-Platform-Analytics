@@ -3,7 +3,7 @@ export function createAnalyticsRepository(pool) {
     async details(userId, from, to, platform, deductionRate = '0', selection = null) {
       const { rows: [row] } = await pool.query(`
         WITH period_shifts AS (
-          SELECT s.id, s.started_at AT TIME ZONE 'Europe/Warsaw' AS local_start,
+          SELECT s.id, s.started_at, s.ended_at, s.started_at AT TIME ZONE 'Europe/Warsaw' AS local_start,
             EXTRACT(EPOCH FROM (s.ended_at - s.started_at)) / 3600 AS hours
           FROM shifts s
           WHERE s.user_id = $1 AND s.status = 'completed'
@@ -74,8 +74,38 @@ export function createAnalyticsRepository(pool) {
           COALESCE((SELECT JSONB_AGG(JSONB_BUILD_OBJECT(
             'key', key::text, 'shiftCount', count, 'totalHours', hours, 'earningsPerHour', earnings_per_hour::text
           ) ORDER BY earnings_per_hour DESC NULLS LAST, key) FROM weekday_totals), '[]') AS "rankingWeekdays",
+          -- Events are attached to the same global start cohort, never joined to
+          -- platform entries. Exact integer microseconds preserve timestamp bounds.
+          COALESCE((SELECT JSONB_AGG(JSONB_BUILD_OBJECT(
+            'id', s.id,
+            'startedAtUs', (EXTRACT(EPOCH FROM s.started_at) * 1000000)::bigint::text,
+            'endedAtUs', (EXTRACT(EPOCH FROM s.ended_at) * 1000000)::bigint::text,
+            'events', COALESCE((SELECT JSONB_AGG(JSONB_BUILD_OBJECT(
+              'platform', o.platform, 'clickedAtUs', (EXTRACT(EPOCH FROM o.clicked_at) * 1000000)::bigint::text
+            ) ORDER BY o.id) FROM order_events o WHERE o.shift_id = s.id), '[]')
+          )) FROM period_shifts s WHERE s.ended_at <= COALESCE($7::timestamptz, $3::timestamptz)
+            AND EXISTS (SELECT 1 FROM period_entries e WHERE e.shift_id = s.id)), '[]') AS "hourlyShifts",
           COALESCE((SELECT JSONB_AGG(value ORDER BY platform) FROM platform_results), '[]') AS platforms
       `, [userId, from, to, platform, deductionRate, selection?.endExclusive ?? null, selection?.asOf ?? null]);
+      return row;
+    },
+    async hourlyGroups(groups, eventPlatform) {
+      const { rows: [row] } = await pool.query(`
+        WITH buckets AS (
+          SELECT key, label, "registeredOrders" AS orders, "workMicroseconds"::numeric AS micros
+          FROM JSONB_TO_RECORDSET($1::jsonb) AS b(key text, label text, "registeredOrders" integer, "workMicroseconds" text)
+        ), results AS (
+          SELECT key, CASE WHEN $2 = 'all' THEN ROUND(orders * 3600000000::numeric / NULLIF(micros, 0), 2) END AS rate,
+            JSONB_BUILD_OBJECT('key', key, 'label', label,
+              'status', CASE WHEN micros > 0 THEN 'available' ELSE 'no_data' END,
+              'registeredOrders', CASE WHEN micros > 0 THEN orders END,
+              'workHours', CASE WHEN $2 = 'all' THEN micros / 3600000000::numeric END,
+              'registeredOrdersPerHour', CASE WHEN $2 = 'all'
+                THEN ROUND(orders * 3600000000::numeric / NULLIF(micros, 0), 2)::text END) AS value
+          FROM buckets
+        )
+        SELECT JSONB_AGG(value ORDER BY key::integer) AS groups, MAX(rate)::text AS "bestRate" FROM results
+      `, [JSON.stringify(groups), eventPlatform]);
       return row;
     },
     async summary(userId, from, to, deductionRate = '0', selection = null, previousWindow = null) {

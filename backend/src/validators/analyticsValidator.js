@@ -48,9 +48,9 @@ export function validateSummaryPeriod(value = 'all') {
   return value;
 }
 
-export function validateAnalyticsPlatform(value = 'all') {
+export function validateAnalyticsPlatform(value = 'all', parameter = 'platform') {
   if (!['all', 'glovo', 'bolt_food', 'uber_eats', 'pyszne_pl', 'wolt', 'other'].includes(value)) {
-    throw httpError(400, 'Wybierz poprawną platformę.');
+    throw httpError(400, parameter === 'platform' ? 'Wybierz poprawną platformę.' : 'Wybierz poprawną platformę (eventPlatform).');
   }
   return value;
 }

@@ -84,6 +84,205 @@ async function seed({ userId = owner, startedAt = new Date(anchor - day), hours 
 
 const mainKpis = ['totalEarnings', 'totalHours', 'totalOrders', 'earningsPerHour', 'earningsPerKm', 'ordersPerHour'];
 
+async function seedEvents(id, events) {
+  for (const [platform, time] of events) {
+    await pool.query('INSERT INTO order_events (shift_id, platform, clicked_at) VALUES ($1, $2, $3)', [id, platform, time]);
+  }
+}
+
+async function hourlyDetails(query = 'calendar=month&anchor=2026-10-01&asOf=2026-11-02T12:00:00Z', auth = token) {
+  const response = await request(`/analytics/details?${query}`, { auth });
+  assert.equal(response.status, 200);
+  assert.equal(response.cache, 'no-store');
+  return response.body.details;
+}
+
+test('hourly activity uses final saved registrations, exact noon bounds and global sample before independent filters', async () => {
+  const tracked = await seed({ startedAt: new Date('2026-10-05T09:30:00Z'), hours: 1,
+    entries: [['glovo', '100', 50], ['wolt', '100', 50]] });
+  const platforms = ['glovo', 'bolt_food', 'uber_eats', 'pyszne_pl', 'wolt', 'other'];
+  const times = ['09:30', '09:40', '09:50', '10:00', '10:10', '10:20'];
+  await seedEvents(tracked, platforms.map((platform, i) => [platform, `2026-10-05T${times[i]}:00Z`]));
+  await seedEvents(tracked, [['glovo', '2026-10-05T09:29:00Z'], ['glovo', '2026-10-05T10:30:00Z'], ['glovo', '2026-10-05T10:31:00Z']]);
+  await seed({ startedAt: new Date('2026-10-06T08:00:00Z') }); // No registrations, still in normal KPIs.
+  const foreign = await seed({ userId: other, startedAt: new Date('2026-10-05T09:30:00Z'), hours: 1 });
+  await seedEvents(foreign, [['glovo', '2026-10-05T10:00:00Z']]);
+  const incomplete = await seed({ startedAt: new Date('2026-10-05T09:30:00Z'), hours: 1, entries: [] });
+  await seedEvents(incomplete, [['glovo', '2026-10-05T10:00:00Z']]);
+  await seed({ startedAt: new Date('2026-10-05T09:30:00Z'), status: 'active' });
+  const details = await hourlyDetails();
+  const hourly = details.hourlyActivity;
+  assert.equal(details.shiftCount, 2);
+  assert.equal(details.months[0].totalHours, 3);
+  assert.equal(details.months[0].totalOrders, 105);
+  assert.equal(hourly.groups.length, 12);
+  assert.deepEqual(hourly.groups.map(group => group.key), Array.from({ length: 12 }, (_, i) => String(i)));
+  assert.equal(hourly.groups[5].label, '10:00–12:00');
+  for (const key of [5, 6]) {
+    assert.equal(hourly.groups[key].registeredOrders, 3);
+    assert.equal(hourly.groups[key].workHours, 0.5);
+    assert.equal(hourly.groups[key].registeredOrdersPerHour, '6.00');
+  }
+  assert.deepEqual(hourly.bestIntervals, { status: 'available', registeredOrdersPerHour: '6.00', keys: ['5', '6'] });
+  assert.deepEqual(hourly.quality, { coverageStatus: 'unknown', cohortShiftCount: 2, includedShiftCount: 1,
+    shiftsWithoutValidEvents: 1, invalidEventCount: 3, excludedOverlapShiftCount: 0, overlapEventCount: 0, excludedEventCount: 3 });
+  assert.equal(hourly.groups[0].registeredOrders, null);
+  assert.equal(hourly.groups[0].workHours, 0);
+  assert.equal(hourly.groups[0].registeredOrdersPerHour, null);
+  for (const [i, platform] of platforms.entries()) {
+    const filtered = await hourlyDetails(`calendar=month&anchor=2026-10-01&asOf=2026-11-02T12:00:00Z&eventPlatform=${platform}`);
+    assert.equal(filtered.hourlyActivity.mode, 'count');
+    assert.equal(filtered.hourlyActivity.groups[i < 3 ? 5 : 6].registeredOrders, 1);
+    assert.ok(filtered.hourlyActivity.groups.every(group => group.workHours === null && group.registeredOrdersPerHour === null));
+    assert.equal(filtered.hourlyActivity.bestIntervals.status, 'unavailable');
+    assert.deepEqual(filtered.hourlyActivity.quality, hourly.quality);
+    assert.deepEqual(filtered.bestWeekdays, details.bestWeekdays);
+    assert.deepEqual(filtered.months, details.months);
+  }
+  const platformOnly = await hourlyDetails('calendar=month&anchor=2026-10-01&asOf=2026-11-02T12:00:00Z&platform=uber_eats');
+  assert.equal(platformOnly.shiftCount, 0);
+  assert.deepEqual(platformOnly.hourlyActivity, hourly);
+  await request('/settings', { method: 'PUT', body: { netProfile: 'custom', deductionRate: '0.2' } });
+  const net = await hourlyDetails('calendar=month&anchor=2026-10-01&asOf=2026-11-02T12:00:00Z&mode=estimated_net');
+  assert.deepEqual(net.hourlyActivity, hourly);
+  const combined = await hourlyDetails('calendar=month&anchor=2026-10-01&asOf=2026-11-02T12:00:00Z&platform=glovo&eventPlatform=wolt');
+  assert.equal(combined.hourlyActivity.groups[6].registeredOrders, 1);
+  assert.equal(combined.months[0].totalOrders, 55);
+  for (const deductionRate of ['0', '1']) {
+    await request('/settings', { method: 'PUT', body: { netProfile: 'custom', deductionRate } });
+    assert.deepEqual((await hourlyDetails('calendar=month&anchor=2026-10-01&asOf=2026-11-02T12:00:00Z&mode=estimated_net')).hourlyActivity, hourly);
+  }
+  const owned = await hourlyDetails('calendar=month&anchor=2026-10-01&asOf=2026-11-02T12:00:00Z&user_id=' + owner, otherToken);
+  assert.equal(owned.hourlyActivity.quality.cohortShiftCount, 1);
+  assert.equal(owned.hourlyActivity.groups[6].registeredOrders, 1);
+  assert.equal((await request('/analytics/details?eventPlatform=all', { auth: null })).status, 401);
+  for (const query of ['eventPlatform=', 'eventPlatform=invalid', 'eventPlatform=glovo&eventPlatform=wolt']) {
+    assert.equal((await request(`/analytics/details?${query}`)).status, 400);
+  }
+  assert.equal((await pool.query('SELECT COUNT(*)::integer AS count FROM order_events WHERE shift_id = $1', [tracked])).rows[0].count, 9);
+  await pool.query("UPDATE shifts SET started_at = started_at - INTERVAL '1 microsecond' WHERE id = $1", [tracked]);
+  const roundedTie = (await hourlyDetails()).hourlyActivity;
+  assert.ok(roundedTie.groups[5].workHours > roundedTie.groups[6].workHours);
+  assert.deepEqual(roundedTie.bestIntervals.keys, ['5', '6']); // Different raw rates, identical final ROUND(…, 2).
+});
+
+test('hourly events stay in the shift start cohort across midnight and a month boundary for calendar and legacy periods', async () => {
+  const september = await seed({ startedAt: new Date('2026-09-30T21:30:00Z'), hours: 3 });
+  await seedEvents(september, [['glovo', '2026-09-30T22:30:00Z']]); // Locally October, but September cohort.
+  const october = await seed({ startedAt: new Date('2026-10-31T22:30:00Z'), hours: 1.5 });
+  await seedEvents(october, [['glovo', '2026-10-31T22:30:00Z'], ['wolt', '2026-10-31T23:15:00Z'], ['glovo', '2026-11-01T00:00:00Z']]);
+  const november = await seed({ startedAt: new Date('2026-11-01T10:00:00Z'), hours: 1 });
+  await seedEvents(november, [['wolt', '2026-11-01T10:30:00Z']]);
+  const details = await hourlyDetails();
+  assert.equal(details.hourlyActivity.quality.cohortShiftCount, 1);
+  assert.equal(details.hourlyActivity.groups[11].workHours, 0.5);
+  assert.equal(details.hourlyActivity.groups[11].registeredOrders, 1);
+  assert.equal(details.hourlyActivity.groups[0].workHours, 1);
+  assert.equal(details.hourlyActivity.groups[0].registeredOrders, 1);
+  assert.equal(details.hourlyActivity.quality.invalidEventCount, 1);
+  const next = await hourlyDetails('calendar=month&anchor=2026-11-01&asOf=2026-11-02T12:00:00Z');
+  assert.equal(next.hourlyActivity.quality.cohortShiftCount, 1);
+  assert.equal(next.hourlyActivity.groups[0].registeredOrders, null);
+  const service = createAnalyticsService(createAnalyticsRepository(pool), () => new Date('2026-11-02T12:00:00Z'));
+  for (const period of ['week', 'month', 'three_months', 'all', 'current_week']) {
+    const legacy = await service.details(owner, period, 'all', 'gross');
+    assert.equal(legacy.hourlyActivity.groups.length, 12);
+    assert.equal(legacy.hourlyActivity.asOf, legacy.to);
+    assert.equal(legacy.hourlyActivity.quality.includedShiftCount, period === 'current_week' ? 0 : period === 'three_months' || period === 'all' ? 3 : 2);
+  }
+});
+
+test('hourly work hours and event counts remain correct through spring and autumn Warsaw DST', async () => {
+  for (const [start, hours, events, expectedRate, date] of [
+    ['2026-03-29T01:00:00Z', 1, ['2026-03-29T01:00:00Z', '2026-03-29T01:30:00Z'], '2.00', '2026-03-29'],
+    ['2026-10-25T00:00:00Z', 3, ['2026-10-25T00:30:00Z', '2026-10-25T01:30:00Z'], '0.67', '2026-10-25'],
+  ]) {
+    await pool.query('DELETE FROM shifts');
+    const id = await seed({ startedAt: new Date(start), hours });
+    await seedEvents(id, events.map(time => ['glovo', time]));
+    const details = await hourlyDetails(`calendar=week&anchor=${date}&asOf=2026-11-02T12:00:00Z`);
+    assert.equal(details.hourlyActivity.groups[1].workHours, hours);
+    assert.equal(details.hourlyActivity.groups[1].registeredOrders, 2);
+    assert.equal(details.hourlyActivity.groups[1].registeredOrdersPerHour, expectedRate);
+    assert.equal(details.hourlyActivity.groups.reduce((sum, group) => sum + group.workHours, 0), hours);
+    assert.deepEqual(details.hourlyActivity.bestIntervals.keys, ['1']);
+  }
+});
+
+test('overlapping cohort shifts including a shift without events are excluded only from hourly activity', async () => {
+  const a = await seed({ startedAt: new Date('2026-10-05T08:00:00Z'), hours: 4 });
+  await seed({ startedAt: new Date('2026-10-05T09:00:00Z'), hours: 1 });
+  const c = await seed({ startedAt: new Date('2026-10-05T11:00:00Z'), hours: 2 });
+  const d = await seed({ startedAt: new Date('2026-10-05T13:00:00Z'), hours: 1 });
+  await seedEvents(a, [['glovo', '2026-10-05T09:00:00Z'], ['glovo', '2026-10-05T12:00:00Z']]);
+  await seedEvents(c, [['glovo', '2026-10-05T12:00:00Z']]);
+  await seedEvents(d, [['glovo', '2026-10-05T13:30:00Z']]);
+  const details = await hourlyDetails();
+  assert.equal(details.shiftCount, 4);
+  assert.equal(details.months[0].totalHours, 8);
+  assert.equal(details.months[0].totalOrders, 20);
+  assert.equal(details.bestWeekdays.days[0].shiftCount, 4);
+  assert.deepEqual(details.hourlyActivity.quality, { coverageStatus: 'unknown', cohortShiftCount: 4,
+    includedShiftCount: 1, shiftsWithoutValidEvents: 1, invalidEventCount: 1,
+    excludedOverlapShiftCount: 3, overlapEventCount: 2, excludedEventCount: 3 });
+  assert.equal(details.hourlyActivity.groups[7].workHours, 1);
+  assert.equal(details.hourlyActivity.groups[7].registeredOrders, 1);
+  assert.equal((await calendarSummary('month', '2026-10-01', '2026-11-02T12:00:00Z')).totalHours, 8);
+});
+
+test('hourly availability distinguishes no observations, invalid events, real zero in a sample and missing platform registrations', async () => {
+  assert.equal((await hourlyDetails()).hourlyActivity.emptyReason, 'no_completed_shifts');
+  const id = await seed({ startedAt: new Date('2026-10-05T08:00:00Z'), hours: 4 });
+  assert.equal((await hourlyDetails()).hourlyActivity.emptyReason, 'no_events');
+  await seedEvents(id, [['glovo', '2026-10-05T07:00:00Z'], ['glovo', '2026-10-05T12:00:00Z']]);
+  assert.equal((await hourlyDetails()).hourlyActivity.emptyReason, 'no_valid_events');
+  await seedEvents(id, [['glovo', '2026-10-05T08:30:00Z']]);
+  const hourly = (await hourlyDetails()).hourlyActivity;
+  assert.equal(hourly.status, 'available');
+  assert.equal(hourly.groups[6].workHours, 2);
+  assert.equal(hourly.groups[6].registeredOrders, 0);
+  assert.equal(hourly.groups[6].registeredOrdersPerHour, '0.00');
+  assert.equal(hourly.groups[7].registeredOrdersPerHour, null);
+  const missing = (await hourlyDetails('calendar=month&anchor=2026-10-01&asOf=2026-11-02T12:00:00Z&eventPlatform=wolt')).hourlyActivity;
+  assert.equal(missing.status, 'available');
+  assert.equal(missing.groups[5].registeredOrders, 0);
+  assert.equal(missing.groups[5].workHours, null);
+  await seed({ startedAt: new Date('2026-10-05T09:00:00Z'), hours: 1 });
+  const excluded = (await hourlyDetails()).hourlyActivity;
+  assert.equal(excluded.emptyReason, 'overlapping_shifts');
+  assert.equal(excluded.quality.excludedOverlapShiftCount, 2);
+  assert.equal(excluded.quality.excludedEventCount, 3);
+  assert.ok(excluded.groups.every(group => group.registeredOrders === null));
+});
+
+test('best hourly interval uses the ratio of sums rather than event count or mean of shift rates', async () => {
+  const a = await seed({ startedAt: new Date('2026-10-05T06:00:00Z'), hours: 4 });
+  await seedEvents(a, [['glovo', '2026-10-05T06:30:00Z'], ['glovo', '2026-10-05T08:30:00Z']]);
+  const b = await seed({ startedAt: new Date('2026-10-06T08:00:00Z'), hours: 2 });
+  await seedEvents(b, [['glovo', '2026-10-06T08:30:00Z'], ['wolt', '2026-10-06T09:30:00Z']]);
+  const c = await seed({ startedAt: new Date('2026-10-07T10:00:00Z'), hours: 0.25 });
+  await seedEvents(c, [['wolt', '2026-10-07T10:05:00Z']]);
+  const hourly = (await hourlyDetails()).hourlyActivity;
+  assert.equal(hourly.groups[5].registeredOrders, 3);
+  assert.equal(hourly.groups[5].workHours, 4);
+  assert.equal(hourly.groups[5].registeredOrdersPerHour, '0.75');
+  assert.equal(hourly.groups[6].registeredOrdersPerHour, '4.00');
+  assert.deepEqual(hourly.bestIntervals.keys, ['6']);
+});
+
+test('event validity preserves PostgreSQL microseconds and excludes work not finished at the observation time', async () => {
+  const id = await seed({ startedAt: new Date('2026-10-05T08:00:00Z'), hours: 1 });
+  await seedEvents(id, [['glovo', '2026-10-05T08:00:00Z'], ['glovo', '2026-10-05T08:00:00.000001Z']]);
+  await pool.query("UPDATE shifts SET started_at = started_at + INTERVAL '1 microsecond' WHERE id = $1", [id]);
+  const future = await seed({ startedAt: new Date('2026-10-05T08:00:00Z'), hours: 2 });
+  await seedEvents(future, [['glovo', '2026-10-05T09:30:00Z']]);
+  const details = await hourlyDetails('calendar=month&anchor=2026-10-01&asOf=2026-10-05T09:00:00Z');
+  assert.equal(details.hourlyActivity.quality.cohortShiftCount, 1);
+  assert.equal(details.hourlyActivity.quality.invalidEventCount, 1);
+  assert.equal(details.hourlyActivity.groups[5].registeredOrders, 1);
+  assert.ok(details.hourlyActivity.groups[5].workHours < 1);
+});
+
 async function calendarSummary(calendar, anchorDate, asOf, mode = 'gross', auth = token) {
   const query = new URLSearchParams({ calendar, asOf, mode });
   if (anchorDate) query.set('anchor', anchorDate);
@@ -353,7 +552,7 @@ test('calendar summary and details share half-open Warsaw bounds, ownership and 
       assert.deepEqual(filtered.platforms, d.platforms);
       for (const field of ['comparison', 'bestWeekdays', 'hourlyActivity', 'availableRange']) {
         assert.equal(Object.hasOwn(s, field), field === 'comparison');
-        assert.equal(Object.hasOwn(d, field), field === 'bestWeekdays');
+        assert.equal(Object.hasOwn(d, field), ['bestWeekdays', 'hourlyActivity'].includes(field));
       }
     }
     for (const endpoint of ['summary', 'details']) {

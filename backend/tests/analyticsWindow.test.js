@@ -106,6 +106,7 @@ test('both analytics methods use the same selection mechanism and read the serve
   const calls = [];
   const service = createAnalyticsService({
     async summary(...args) { calls.push(args); return { totalHours: '0', totalOrders: '0' }; },
+    async hourlyGroups() { return { groups: [], bestRate: null }; },
     async details(...args) { calls.push(args); return { weekdays: [], startTimes: [] }; },
   }, () => { clockReads++; return now; });
   const query = { calendar: 'month', anchor: '2026-11-05' };

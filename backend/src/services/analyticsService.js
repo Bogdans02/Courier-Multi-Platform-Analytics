@@ -1,6 +1,7 @@
 import { validateAnalyticsPlatform, validateEarningsMode } from '../validators/analyticsValidator.js';
 import { httpError } from '../utils/httpError.js';
 import { resolveAnalyticsWindow, resolvePreviousWindow } from './analyticsWindow.js';
+import { aggregateHourlyActivity, finishHourlyActivity } from './analyticsHourlyActivity.js';
 
 function emptyGroup(key, platform) {
   return { key, shiftCount: 0, totalEarnings: '0.00', totalOrders: 0,
@@ -50,14 +51,18 @@ export function createAnalyticsService(analytics, clock = () => new Date(), sett
     async details(userId, periodValue, platformValue, modeValue, calendarQuery = {}) {
       const { period, from, to, selection } = resolveAnalyticsWindow({ ...calendarQuery, period: periodValue }, clock());
       const platform = validateAnalyticsPlatform(platformValue);
+      const eventPlatform = validateAnalyticsPlatform(calendarQuery.eventPlatform, 'eventPlatform');
       const { mode, deductionRate } = await earningsSettings(userId, modeValue);
-      const { rankingWeekdays = [], ...result } = await analytics.details(userId, from, to, platform, deductionRate, ...(selection ? [selection] : []));
+      const { rankingWeekdays = [], hourlyShifts = [], ...result } = await analytics.details(userId, from, to, platform, deductionRate, ...(selection ? [selection] : []));
+      const hourly = aggregateHourlyActivity(hourlyShifts, selection?.asOf ?? to, eventPlatform);
+      const hourlyActivity = finishHourlyActivity(hourly, await analytics.hourlyGroups(hourly.groups, eventPlatform));
       return {
         period, platform, mode, deductionRate: mode === 'estimated_net' ? deductionRate : null, timeZone: 'Europe/Warsaw',
         from: from?.toISOString() ?? null, to: to.toISOString(),
         ...(selection && { selection }),
         ...result,
         bestWeekdays: bestWeekdays(rankingWeekdays),
+        hourlyActivity,
         weekdays: [1, 2, 3, 4, 5, 6, 7].map((key) =>
           result.weekdays.find((row) => row.key === String(key)) ?? emptyGroup(String(key), platform)),
         startTimes: [0, 1, 2, 3].map((key) =>
