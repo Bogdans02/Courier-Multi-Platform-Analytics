@@ -291,6 +291,88 @@ async function calendarSummary(calendar, anchorDate, asOf, mode = 'gross', auth 
   return response.body.summary;
 }
 
+test('availableRange uses the earliest own Warsaw shift date or expense date independently of selection and financial mode', async () => {
+  await seed({ startedAt: new Date('2026-03-31T22:30:00Z') }); // April 1 in Warsaw.
+  await seed({ startedAt: new Date('2026-10-05T08:00:00Z') });
+  await seed({ userId: other, startedAt: new Date('2024-01-01T08:00:00Z') });
+  await pool.query(`INSERT INTO expenses (user_id, category, amount, expense_date)
+    VALUES ($1, 'other', 1, '2026-05-10'), ($2, 'other', 1, '2023-01-01')`, [owner, other]);
+  await request('/settings', { method: 'PUT', body: { netProfile: 'custom', deductionRate: '0.2' } });
+  const asOf = '2026-10-31T23:30:00Z'; // November 1 in Warsaw, unlike the UTC date.
+  for (const [calendar, anchorDate] of [['week', '2026-10-19'], ['month', '2026-10-01'], ['all', undefined]]) {
+    for (const mode of ['gross', 'estimated_net']) {
+      const summary = await calendarSummary(calendar, anchorDate, asOf, mode);
+      assert.deepEqual(summary.availableRange, { earliestDate: '2026-04-01', currentDate: '2026-11-01' });
+      if (calendar === 'all') assert.equal(summary.comparison, null);
+    }
+  }
+  await pool.query(`INSERT INTO expenses (user_id, category, amount, expense_date)
+    VALUES ($1, 'fuel', 10, '2026-02-12')`, [owner]);
+  assert.deepEqual((await calendarSummary('all', undefined, asOf)).availableRange,
+    { earliestDate: '2026-02-12', currentDate: '2026-11-01' });
+  const foreign = await calendarSummary('all', undefined, asOf, 'gross', otherToken);
+  assert.equal(foreign.availableRange.earliestDate, '2023-01-01');
+  const forged = await request(`/analytics/summary?calendar=all&asOf=${asOf}&user_id=${other}`);
+  assert.equal(forged.body.summary.availableRange.earliestDate, '2026-02-12');
+  assert.equal((await request('/analytics/summary?calendar=all', { auth: null })).status, 401);
+});
+
+test('expense-only history sets availableRange without shift_id and remains available after deleting a linked shift', async () => {
+  const expense = await request('/expenses', { method: 'POST', body: {
+    category: 'other', amount: '10', expenseDate: '2026-01-15',
+  } });
+  assert.equal(expense.status, 201);
+  const read = async () => (await calendarSummary('all', undefined, '2026-11-02T12:00:00Z')).availableRange;
+  assert.equal((await read()).earliestDate, '2026-01-15');
+  const id = await seed({ startedAt: new Date('2026-01-01T10:00:00Z') });
+  await pool.query(`INSERT INTO expenses (user_id, shift_id, category, amount, expense_date)
+    VALUES ($1, $2, 'other', 1, '2026-01-02')`, [owner, id]);
+  assert.equal((await read()).earliestDate, '2026-01-01');
+  assert.equal((await request(`/shifts/${id}`, { method: 'DELETE' })).status, 204);
+  assert.equal((await read()).earliestDate, '2026-01-02');
+  const { rows: [remaining] } = await pool.query("SELECT shift_id FROM expenses WHERE expense_date = '2026-01-02'");
+  assert.equal(remaining.shift_id, null);
+});
+
+test('empty availableRange and its upper date use the shared asOf, excluding active work, unfinished observations and future expense dates', async () => {
+  const asOf = '2026-10-05T22:30:00Z'; // October 6, 00:30 Warsaw.
+  const read = moment => calendarSummary('all', undefined, moment);
+  assert.deepEqual((await read(asOf)).availableRange, { earliestDate: null, currentDate: '2026-10-06' });
+  await seed({ startedAt: new Date('2025-01-01T10:00:00Z'), status: 'active' });
+  await seed({ startedAt: new Date('2026-10-05T21:30:00Z'), hours: 2 }); // Ends after asOf.
+  await seed({ startedAt: new Date('2026-10-10T08:00:00Z') });
+  await pool.query(`INSERT INTO expenses (user_id, category, amount, expense_date)
+    VALUES ($1, 'other', 1, '2026-10-07')`, [owner]);
+  assert.equal((await read(asOf)).availableRange.earliestDate, null);
+  await pool.query(`INSERT INTO expenses (user_id, category, amount, expense_date)
+    VALUES ($1, 'other', 1, '2026-10-06')`, [owner]);
+  assert.equal((await read(asOf)).availableRange.earliestDate, '2026-10-06');
+  assert.equal((await read('2026-10-05T23:30:00Z')).availableRange.earliestDate, '2026-10-05');
+  assert.deepEqual((await read('2026-10-05T21:00:00Z')).availableRange,
+    { earliestDate: null, currentDate: '2026-10-05' });
+});
+
+test('availableRange includes completed shifts without summaries and spans empty calendar periods without changing their results', async () => {
+  await seed({ startedAt: new Date('2026-01-05T10:00:00Z'), entries: [] });
+  await seed({ startedAt: new Date('2026-03-05T10:00:00Z') });
+  const february = await calendarSummary('month', '2026-02-01', '2026-03-31T12:00:00Z');
+  assert.deepEqual(february.availableRange, { earliestDate: '2026-01-05', currentDate: '2026-03-31' });
+  assert.equal(february.shiftCount, 0);
+  assert.equal(february.totalEarnings, '0.00');
+  const january = await calendarSummary('month', '2026-01-01', '2026-03-31T12:00:00Z');
+  assert.equal(january.incompleteShiftCount, 1);
+  assert.deepEqual(january.availableRange, february.availableRange);
+  const details = await hourlyDetails('calendar=month&anchor=2026-02-01&asOf=2026-03-31T12:00:00Z');
+  assert.equal(Object.hasOwn(details, 'availableRange'), false);
+  assert.equal(details.bestWeekdays.status, 'no_data');
+  assert.equal(details.hourlyActivity.status, 'no_data');
+  for (const period of ['week', 'month', 'three_months', 'all', 'current_week']) {
+    const legacy = await request(`/analytics/summary?period=${period}`);
+    assert.equal(legacy.status, 200);
+    assert.equal(Object.hasOwn(legacy.body.summary, 'availableRange'), false);
+  }
+});
+
 test('full week compares all six KPIs with matching distance subsets, final orders, one duration and owner net profile', async () => {
   await request('/settings', { method: 'PUT', body: { netProfile: 'custom', deductionRate: '0.2' } });
   const tracked = await seed({ startedAt: new Date('2026-10-19T08:00:00Z'), hours: 6, distance: '60',
@@ -551,7 +633,7 @@ test('calendar summary and details share half-open Warsaw bounds, ownership and 
       assert.ok(filtered.trend.every((row) => row.earningsPerHour === null));
       assert.deepEqual(filtered.platforms, d.platforms);
       for (const field of ['comparison', 'bestWeekdays', 'hourlyActivity', 'availableRange']) {
-        assert.equal(Object.hasOwn(s, field), field === 'comparison');
+        assert.equal(Object.hasOwn(s, field), ['comparison', 'availableRange'].includes(field));
         assert.equal(Object.hasOwn(d, field), ['bestWeekdays', 'hourlyActivity'].includes(field));
       }
     }

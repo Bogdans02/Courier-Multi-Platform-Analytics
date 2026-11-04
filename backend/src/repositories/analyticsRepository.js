@@ -1,5 +1,18 @@
 export function createAnalyticsRepository(pool) {
   return {
+    async availableRange(userId, asOf) {
+      const { rows: [row] } = await pool.query(`
+        SELECT TO_CHAR(LEAST(
+          (SELECT MIN((started_at AT TIME ZONE 'Europe/Warsaw')::date) FROM shifts
+            WHERE user_id = $1 AND status = 'completed' AND started_at <= $2::timestamptz
+              AND ended_at <= $2::timestamptz),
+          (SELECT MIN(expense_date) FROM expenses WHERE user_id = $1
+            AND expense_date <= ($2::timestamptz AT TIME ZONE 'Europe/Warsaw')::date)
+        ), 'YYYY-MM-DD') AS "earliestDate",
+          TO_CHAR($2::timestamptz AT TIME ZONE 'Europe/Warsaw', 'YYYY-MM-DD') AS "currentDate"
+      `, [userId, asOf]);
+      return row;
+    },
     async details(userId, from, to, platform, deductionRate = '0', selection = null) {
       const { rows: [row] } = await pool.query(`
         WITH period_shifts AS (

@@ -36,12 +36,13 @@ export function createAnalyticsService(analytics, clock = () => new Date(), sett
       const { mode, deductionRate } = await earningsSettings(userId, modeValue);
       const previousWindow = resolvePreviousWindow(selection);
       const row = await analytics.summary(userId, from, to, deductionRate, ...(selection ? [selection, previousWindow] : []));
+      const availableRange = selection ? await analytics.availableRange(userId, selection.asOf) : undefined;
       const { comparison, ...values } = row;
       return {
         period, mode, deductionRate: mode === 'estimated_net' ? deductionRate : null,
         from: from?.toISOString() ?? null,
         to: to.toISOString(),
-        ...(selection && { selection }),
+        ...(selection && { selection, availableRange }),
         ...values,
         ...(selection && { comparison: previousWindow ? { previousWindow, ...comparison } : null }),
         totalHours: Number(row.totalHours),

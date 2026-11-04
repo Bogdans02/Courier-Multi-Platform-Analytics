@@ -138,7 +138,9 @@ test('calendar summary forwards NUMERIC comparison results and uses one clock an
     earningsPerKm: { previousValue: null, changePercent: null, reason: 'undefined_metric' },
     ordersPerHour: { previousValue: null, changePercent: null, reason: 'no_previous_observations' },
   };
-  const service = createAnalyticsService({ async summary(...args) {
+  const service = createAnalyticsService({
+    async availableRange() { return { earliestDate: null, currentDate: '2026-11-04' }; },
+    async summary(...args) {
     calls.push(args);
     return { totalHours: '8', totalOrders: '0', comparison: { previousShiftCount: 2,
       previousDistanceShiftCount: 1, metrics } };
@@ -161,7 +163,10 @@ test('calendar summary forwards NUMERIC comparison results and uses one clock an
 
 test('calendar all explicitly has NULL comparison while every legacy period omits it', async () => {
   const calls = [];
-  const service = createAnalyticsService({ async summary(...args) {
+  let rangeReads = 0;
+  const service = createAnalyticsService({
+    async availableRange() { rangeReads++; return { earliestDate: null, currentDate: '2026-11-04' }; },
+    async summary(...args) {
     calls.push(args);
     return { totalHours: '0', totalOrders: '0', comparison: null };
   } }, () => new Date('2026-11-04T14:30:00Z'));
@@ -170,6 +175,35 @@ test('calendar all explicitly has NULL comparison while every legacy period omit
   for (const period of ['week', 'month', 'three_months', 'all', 'current_week']) {
     const result = await service.summary(42, period);
     assert.equal(Object.hasOwn(result, 'comparison'), false);
+    assert.equal(Object.hasOwn(result, 'availableRange'), false);
     assert.equal(calls.at(-1).length, 4);
+  }
+  assert.equal(rangeReads, 1);
+});
+
+test('calendar availableRange forwards dates and NULL from repository using the shared asOf and a single clock read', async () => {
+  const now = new Date('2026-11-04T12:00:00Z');
+  for (const calendar of ['week', 'month', 'all']) {
+    for (const asOf of [undefined, '2026-10-31T23:30:00Z']) {
+      let clockReads = 0;
+      const calls = [];
+      const range = { earliestDate: asOf ? '2026-01-05' : null,
+        currentDate: asOf ? '2026-11-01' : '2026-11-04' };
+      const row = { totalHours: '2', totalOrders: '5', totalEarnings: '100.00' };
+      const service = createAnalyticsService({
+        async summary() { return row; },
+        async availableRange(...args) { calls.push(args); return range; },
+      }, () => { clockReads++; return now; });
+      const result = await service.summary(42, undefined, 'gross', { calendar, asOf,
+        ...(calendar !== 'all' && { anchor: '2026-10-19' }) });
+      assert.equal(clockReads, 1);
+      assert.deepEqual(calls, [[42, result.selection.asOf]]);
+      assert.deepEqual(result.availableRange, range);
+      assert.equal(result.totalEarnings, row.totalEarnings);
+      assert.equal(result.totalHours, 2);
+      assert.equal(result.totalOrders, 5);
+      if (calendar !== 'all') assert.ok(result.selection.endExclusive < result.selection.asOf);
+      else assert.equal(result.comparison, null);
+    }
   }
 });
