@@ -91,3 +91,73 @@ test('mobile axes shorten labels while keeping complete table labels and chart a
   const row = { key: '1', shiftCount: 1, totalEarnings: '0.00' };
   assert.deepEqual(analyticsChartData('weekdays', [row]), { labels: ['Poniedziałek'], values: [0] });
 });
+
+test('calendar API uses the server normalized selection and identical asOf for details, with a fresh summary on refresh', async (t) => {
+  const requests = [];
+  const moments = ['2026-11-04T12:00:00.123Z', '2026-11-04T12:01:00.456Z'];
+  let reads = 0;
+  t.mock.method(globalThis, 'fetch', async url => {
+    const parsed = new URL(url);
+    requests.push(parsed);
+    assert.equal(parsed.searchParams.get('period'), null);
+    assert.equal(parsed.searchParams.get('mode'), 'estimated_net');
+    if (parsed.pathname.endsWith('/summary')) {
+      assert.equal(parsed.searchParams.get('asOf'), null);
+      return new Response(JSON.stringify({ summary: { selection: {
+        kind: 'week', anchor: '2026-11-02', asOf: moments[reads++],
+      } } }));
+    }
+    return new Response(JSON.stringify({ details: {} }));
+  });
+  for (const moment of moments) {
+    const { summary } = await getSummary('token', { calendar: 'week', anchor: '2026-11-04' }, undefined, 'estimated_net');
+    const { kind: calendar, anchor, asOf } = summary.selection;
+    await getDetails('token', { calendar, anchor, asOf }, 'wolt', undefined, 'estimated_net');
+    const query = requests.at(-1).searchParams;
+    assert.equal(query.get('calendar'), 'week');
+    assert.equal(query.get('anchor'), '2026-11-02');
+    assert.equal(query.get('asOf'), moment);
+    assert.equal(query.get('platform'), 'wolt');
+  }
+  assert.equal(reads, 2);
+});
+
+test('calendar all never sends anchor or legacy period, including the shared-time details request', async (t) => {
+  const urls = [];
+  t.mock.method(globalThis, 'fetch', async url => { urls.push(new URL(url)); return new Response('{}'); });
+  await getSummary('token', { calendar: 'all', anchor: '2026-11-04' });
+  await getDetails('token', { calendar: 'all', anchor: null, asOf: '2026-11-04T12:00:00Z' }, 'all');
+  for (const url of urls) {
+    assert.equal(url.searchParams.get('calendar'), 'all');
+    assert.equal(url.searchParams.get('anchor'), null);
+    assert.equal(url.searchParams.get('period'), null);
+  }
+  assert.equal(urls[1].searchParams.get('asOf'), '2026-11-04T12:00:00Z');
+});
+
+test('obsolete calendar requests reject even if a delayed response arrives after cancellation', async (t) => {
+  let releaseOld;
+  let reads = 0;
+  t.mock.method(globalThis, 'fetch', () => ++reads === 1 ? new Promise(resolve => { releaseOld = resolve; })
+    : Promise.resolve(new Response(JSON.stringify({ summary: { marker: 'new' } }))));
+  const controller = new AbortController();
+  const old = getSummary('token', { calendar: 'week', anchor: '2026-10-19' }, controller.signal);
+  controller.abort();
+  const current = await getSummary('token', { calendar: 'week', anchor: '2026-10-26' });
+  assert.equal(current.summary.marker, 'new');
+  releaseOld(new Response(JSON.stringify({ summary: { marker: 'old' } })));
+  await assert.rejects(old, { name: 'AbortError' });
+});
+
+test('details retry keeps the summary selection and asOf while preserving its failure', async (t) => {
+  const urls = [];
+  t.mock.method(globalThis, 'fetch', async url => {
+    urls.push(url);
+    return urls.length === 1 ? new Response(JSON.stringify({ message: 'Błąd wykresów.' }), { status: 503 })
+      : new Response(JSON.stringify({ details: { marker: 'retried' } }));
+  });
+  const selection = { calendar: 'month', anchor: '2026-11-01', asOf: '2026-11-04T12:00:00.123Z' };
+  await assert.rejects(getDetails('token', selection, 'all'), { status: 503, message: 'Błąd wykresów.' });
+  assert.equal((await getDetails('token', selection, 'all')).details.marker, 'retried');
+  assert.equal(urls[0], urls[1]);
+});

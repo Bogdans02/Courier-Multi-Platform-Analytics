@@ -2,18 +2,30 @@ const API_BASE_URL = (
   import.meta.env?.VITE_API_BASE_URL || 'http://localhost:3000/api'
 ).replace(/\/$/, '');
 
-export async function getSummary(token, period, signal, mode = 'gross') {
-  return requestAnalytics(token, `summary?period=${encodeURIComponent(period)}${modeQuery(mode)}`, signal);
+export async function getSummary(token, selection, signal, mode = 'gross') {
+  return requestAnalytics(token, `summary?${analyticsQuery(selection, mode)}`, signal);
 }
 
-export async function getDetails(token, period, platform, signal, mode = 'gross') {
+export async function getDetails(token, selection, platform, signal, mode = 'gross') {
   return requestAnalytics(token,
-    `details?period=${encodeURIComponent(period)}&platform=${encodeURIComponent(platform)}${modeQuery(mode)}`, signal);
+    `details?${analyticsQuery(selection, mode, platform)}`, signal);
 }
 
-const modeQuery = (mode) => mode === 'gross' ? '' : `&mode=${encodeURIComponent(mode)}`;
+function analyticsQuery(selection, mode, platform) {
+  const query = new URLSearchParams();
+  if (typeof selection === 'string') query.set('period', selection);
+  else {
+    query.set('calendar', selection.calendar);
+    if (selection.calendar !== 'all') query.set('anchor', selection.anchor);
+    if (selection.asOf) query.set('asOf', selection.asOf);
+  }
+  if (platform !== undefined) query.set('platform', platform);
+  if (mode !== 'gross') query.set('mode', mode);
+  return query.toString();
+}
 
 async function requestAnalytics(token, path, signal) {
+  signal?.throwIfAborted();
   let response;
   try {
     response = await fetch(`${API_BASE_URL}/analytics/${path}`, {
@@ -29,6 +41,7 @@ async function requestAnalytics(token, path, signal) {
   } catch {
     throw Object.assign(new Error('Serwer zwrócił nieprawidłową odpowiedź.'), { status: response.status });
   }
+  signal?.throwIfAborted();
   if (!response.ok) {
     throw Object.assign(new Error(data.message || 'Nie udało się pobrać statystyk.'), { status: response.status });
   }

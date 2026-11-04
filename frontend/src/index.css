@@ -196,6 +196,12 @@ li:first-child .history-month { margin-top: 0; }
 .secondary-metrics .metric-card dt { min-height: auto; }
 .secondary-metrics .metric-card dd { font-size: 1.1rem; }
 .analytics-section { display: grid; gap: 12px; min-width: 0; }
+.analytics-period-navigation { display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px; gap: 8px; align-items: center; }
+.analytics-period-navigation button, .analytics-period-navigation select { min-height: 44px; min-width: 0; border: 1px solid var(--border); border-radius: 12px; background: #081f39; color: inherit; }
+.analytics-period-navigation button { display: flex; align-items: center; justify-content: center; }
+.analytics-period-navigation button:disabled { cursor: not-allowed; opacity: .45; }
+.analytics-period-navigation select { width: 100%; padding: 8px; font-size: .85rem; text-align: center; }
+.analytics-refresh { display: flex; gap: 6px; align-items: center; min-height: 44px; font-size: .8rem; color: var(--muted); }
 .analytics-section-title { font-size: 1.05rem; font-weight: 700; margin-top: 4px; }
 .analytics-chart-title { font-size: .9rem; font-weight: 650; line-height: 1.4; }
 .analytics-kpis { grid-auto-rows: 1fr; }

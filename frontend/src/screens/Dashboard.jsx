@@ -4,47 +4,70 @@ import { getSummary } from '../services/api/analytics.js';
 import DashboardSummary from '../components/DashboardSummary.jsx';
 import IncompleteShiftsNotice from '../components/IncompleteShiftsNotice.jsx';
 import AdvancedAnalytics from '../components/AdvancedAnalytics.jsx';
+import AnalyticsPeriodSelector from '../components/AnalyticsPeriodSelector.jsx';
+import { initialAnalyticsCalendar, selectAnalyticsCalendar, stepAnalyticsCalendar } from '../utils/analyticsCalendar.js';
 import { formatRate } from '../utils/netSettings.js';
 import useEarningsMode from '../hooks/useEarningsMode.js';
-import { Info } from 'lucide-react';
+import { Info, RefreshCw } from 'lucide-react';
 
 export default function Dashboard({ session, onSessionExpired }) {
-  const [period, setPeriod] = useState('week');
+  const [calendarSelection, setCalendarSelection] = useState(initialAnalyticsCalendar);
   const { mode, setMode, settingsError } = useEarningsMode(session.token, onSessionExpired);
-  const [statistics, setStatistics] = useState({ status: 'loading', summary: null, message: '' });
+  const [result, setResult] = useState({ key: '', status: 'loading', summary: null, message: '' });
+  const [navigation, setNavigation] = useState(null);
   const [reload, setReload] = useState(0);
+  const calendar = calendarSelection.kind;
+  const anchor = calendar === 'all' ? undefined : calendarSelection.anchors[calendar];
+  // Every global read gets a new version, including a quick A -> B -> A switch.
+  const key = JSON.stringify([session.token, calendar, anchor, mode, reload]);
+  const statistics = result.key === key ? result : { status: 'loading', summary: null };
+  const availableRange = navigation?.token === session.token ? navigation.range : null;
 
   useEffect(() => {
     if (mode === null) return;
     const controller = new AbortController();
-    getSummary(session.token, period, controller.signal, mode)
+    getSummary(session.token, { calendar, anchor }, controller.signal, mode)
       .then(({ summary }) => {
-        if (!controller.signal.aborted) setStatistics({ status: 'success', summary, message: '' });
+        if (controller.signal.aborted) return;
+        setNavigation({ token: session.token, range: summary.availableRange });
+        setResult({ key, status: 'success', summary, message: '' });
       })
       .catch((error) => {
         if (controller.signal.aborted) return;
         if (error.status === 401) onSessionExpired();
-        else setStatistics({ status: 'error', summary: null, message: error.message });
+        else setResult({ key, status: 'error', summary: null, message: error.message });
       });
     return () => controller.abort();
-  }, [session.token, period, mode, reload, onSessionExpired]);
+  }, [session.token, calendar, anchor, mode, key, onSessionExpired]);
 
   return (
     <>
-      <div className="page-heading"><h1>Analiza</h1></div>
-      <div className="analytics-filters space-y-3">
-      <div className="segmented period-tabs" role="group" aria-label="Okres statystyk">
-        {[['week', 'Tydzień'], ['month', 'Miesiąc'], ['three_months', '3 mies.'], ['all', 'Całość']].map(([value, label]) => <button key={value} type="button" aria-pressed={period === value} onClick={() => {
-          if (period === value) return;
-          setStatistics({ status: 'loading', summary: null, message: '' });
-          setPeriod(value);
-        }}>{label}</button>)}
+      <div className="page-heading flex items-center justify-between gap-3"><h1>Analiza</h1>
+        <button type="button" className="analytics-refresh" disabled={mode === null || statistics.status === 'loading'}
+          onClick={() => setReload(value => value + 1)}><RefreshCw size={16} aria-hidden="true" />Odśwież</button>
       </div>
+      <div className="analytics-filters space-y-3">
+      <AnalyticsPeriodSelector selection={calendarSelection} range={availableRange}
+        confirmedAnchor={statistics.summary?.selection.anchor}
+        onKindChange={kind => {
+          if (kind === calendar) return;
+          setCalendarSelection(state => selectAnalyticsCalendar(state, kind,
+            availableRange?.currentDate ?? initialAnalyticsCalendar().anchors.week));
+          setReload(value => value + 1);
+        }}
+        onAnchorChange={value => {
+          setCalendarSelection(state => ({ ...state, anchors: { ...state.anchors, [state.kind]: value } }));
+          setReload(value => value + 1);
+        }}
+        onStep={direction => {
+          setCalendarSelection(state => stepAnalyticsCalendar(state, direction, availableRange));
+          setReload(value => value + 1);
+        }} />
       {mode !== null && <div className="segmented" role="group" aria-label="Wartości finansowe">
         {[['estimated_net', 'Szacowane netto'], ['gross', 'Brutto']].map(([value, label]) => <button key={value} type="button" aria-pressed={mode === value} onClick={() => {
           if (mode === value) return;
-          setStatistics({ status: 'loading', summary: null, message: '' });
           setMode(value);
+          setReload(value => value + 1);
         }}>{label}</button>)}
       </div>}
       {settingsError && <p role="status" className="text-sm text-amber-300">Nie udało się odczytać ustawień netto. Początkowo wybrano brutto. Możesz zmienić tryb przełącznikiem lub otworzyć ekran ponownie.</p>}
@@ -63,12 +86,11 @@ export default function Dashboard({ session, onSessionExpired }) {
         <p role="alert" className="text-red-400">{statistics.message}</p>
         {mode === 'estimated_net' && <Link to="/settings" className="text-link">Ustaw profil szacowanego netto</Link>}
         <button type="button" className="py-2 underline" onClick={() => {
-          setStatistics({ status: 'loading', summary: null, message: '' });
           setReload((value) => value + 1);
         }}>Spróbuj ponownie</button>
       </div>}
       {statistics.status === 'success' && <DashboardSummary summary={statistics.summary} />}
-      {mode !== null && <AdvancedAnalytics token={session.token} period={period} mode={mode} onSessionExpired={onSessionExpired}
+      {mode !== null && <AdvancedAnalytics token={session.token} selection={statistics.summary?.selection} mode={mode} onSessionExpired={onSessionExpired}
         summary={statistics.summary} showIncompleteWarning={statistics.status !== 'success'} />}
     </>
   );

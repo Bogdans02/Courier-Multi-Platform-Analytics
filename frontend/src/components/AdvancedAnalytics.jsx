@@ -26,17 +26,21 @@ function ResultChart({ title, kind, rows, description, mode }) {
   </section>;
 }
 
-export default function AdvancedAnalytics({ token, period, mode = 'gross', onSessionExpired, summary, showIncompleteWarning = true }) {
+export default function AdvancedAnalytics({ token, selection, mode = 'gross', onSessionExpired, summary, showIncompleteWarning = true }) {
   const [platform, setPlatform] = useState('all');
   const [tableKind, setTableKind] = useState('trend');
   const [reload, setReload] = useState(0);
   const [result, setResult] = useState({ key: '', status: 'loading', details: null, message: '' });
-  const key = `${period}/${platform}/${mode}/${reload}`;
+  const calendar = selection?.kind;
+  const anchor = selection?.anchor;
+  const asOf = selection?.asOf;
+  const key = JSON.stringify([token, calendar, anchor, asOf, platform, mode, reload]);
   const current = result.key === key ? result : { status: 'loading' };
 
   useEffect(() => {
+    if (!calendar || !asOf) return;
     const controller = new AbortController();
-    getDetails(token, period, platform, controller.signal, mode)
+    getDetails(token, { calendar, anchor, asOf }, platform, controller.signal, mode)
       .then(({ details }) => {
         if (!controller.signal.aborted) setResult({ key, status: 'success', details, message: '' });
       })
@@ -46,8 +50,9 @@ export default function AdvancedAnalytics({ token, period, mode = 'gross', onSes
         else setResult({ key, status: 'error', details: null, message: error.message });
       });
     return () => controller.abort();
-  }, [token, period, platform, mode, key, onSessionExpired]);
+  }, [token, calendar, anchor, asOf, platform, mode, key, onSessionExpired]);
 
+  if (!calendar || !asOf) return null;
   const details = current.details;
   return <>
     {details && showIncompleteWarning && <IncompleteShiftsNotice count={details.incompleteShiftCount} />}
