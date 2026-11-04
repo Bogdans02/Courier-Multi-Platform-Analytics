@@ -6,9 +6,9 @@ import { analyticsChartData } from '../utils/analyticsFormat.js';
 import { formatMoney } from '../utils/shiftFormat.js';
 import AnalyticsChart from './AnalyticsChart.jsx';
 import AnalyticsEfficiency from './AnalyticsEfficiency.jsx';
+import AnalyticsPlatforms from './AnalyticsPlatforms.jsx';
 import AnalyticsDataTable from './AnalyticsDataTable.jsx';
 import { DashboardDetails } from './DashboardSummary.jsx';
-import PlatformBadge from './PlatformBadge.jsx';
 import IncompleteShiftsNotice from './IncompleteShiftsNotice.jsx';
 
 const tableViews = [['trend', 'Trend dzienny'], ['weekdays', 'Dni tygodnia'], ['months', 'Miesiące'],
@@ -31,6 +31,7 @@ export default function AdvancedAnalytics({ token, selection, mode = 'gross', on
   const [platform, setPlatform] = useState('all');
   const [tableKind, setTableKind] = useState('trend');
   const [metricKey, setMetricKey] = useState('totalEarnings');
+  const [platformMetric, setPlatformMetric] = useState('earnings');
   const calendar = selection?.kind;
   const asOf = selection?.asOf;
   const global = useAnalyticsDetails({ token, selection, mode, platform: 'all', onSessionExpired });
@@ -52,21 +53,8 @@ export default function AdvancedAnalytics({ token, selection, mode = 'gross', on
       {global.details && <AnalyticsEfficiency details={global.details} selection={selection}
         availableRange={summary?.availableRange} metricKey={metricKey} onMetricChange={setMetricKey} />}
     </section>
-    {details && <section className="analytics-section" aria-labelledby="analytics-platforms-title">
-        <h2 id="analytics-platforms-title" className="analytics-section-title">Platformy</h2>
-        <div className="card">
-          <h3 className="analytics-chart-title">Zarobki i udział platform</h3>
-          {details.platforms.length > 0 ? <div className="platform-shares" aria-label="Udział platform w zarobkach">
-            {details.platforms.map((row) => <div key={row.platform}>
-              <div className="platform-share-label"><PlatformBadge platform={row.platform} /><span className="platform-share-value">
-                <span>{money(row.totalEarnings)}</span><small>{row.earningsShare === null ? 'Brak danych' : `${Number(row.earningsShare).toLocaleString('pl-PL')}%`}</small>
-              </span></div>
-              {row.earningsShare !== null && <div className="platform-share-track" aria-hidden="true"><div className={`platform-share-fill ${row.platform}`}
-                style={{ width: `${Math.min(100, Math.max(0, Number(row.earningsShare)))}%` }} /></div>}
-            </div>)}
-          </div> : <p className="muted py-4 text-sm">Brak danych w wybranym okresie.</p>}
-        </div>
-      </section>}
+    {global.details && <AnalyticsPlatforms rows={global.details.platforms} mode={global.details.mode}
+      metricKey={platformMetric} onMetricChange={setPlatformMetric} />}
     {(details || summary) && <>
       <details className="analytics-disclosure" id="additional-analytics">
         <summary><h2>Pozostałe analizy</h2><ChevronDown className="disclosure-icon" size={20} aria-hidden="true" /></summary>
@@ -90,7 +78,6 @@ export default function AdvancedAnalytics({ token, selection, mode = 'gross', on
             description="Bieżący miesiąc i miesiące na granicach wybranego okresu mogą być niepełne." />
           <ResultChart title="Czas rozpoczęcia zmiany" kind="startTimes" rows={details.startTimes} mode={details.mode}
             description="Wyniki całych zmian według przedziału rozpoczęcia w Polsce, nie zarobki uzyskane w tych godzinach. Start o 06:00 należy do 06:00–12:00." />
-          <ResultChart title="Wykres porównania kwot platform" kind="platforms" rows={details.platforms} mode={details.mode} />
           </> : <p className="muted text-sm">{current.status === 'loading' ? 'Wczytywanie wykresów...' : 'Wykresy są niedostępne. Ponów odczyt powyżej.'}</p>}
         </div>
       </details>

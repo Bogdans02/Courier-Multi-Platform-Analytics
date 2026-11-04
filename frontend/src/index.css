@@ -237,12 +237,12 @@ li:first-child .history-month { margin-top: 0; }
 .analytics-order-average { padding: 12px; border: 1px solid var(--border); border-radius: 12px; }
 .analytics-table-scroll { width: 100%; max-width: 100%; min-width: 0; overflow-x: auto; overscroll-behavior-x: contain; }
 .analytics-table-scroll th { white-space: nowrap; }
-.platform-shares { display: grid; gap: 18px; padding-top: 16px; }
+.platform-shares { display: grid; gap: 18px; }
 .platform-share-label { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 10px; font-size: .8rem; }
-.platform-share-value { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 10px; text-align: right; color: #e0e9f6; font-variant-numeric: tabular-nums; }
-.platform-share-value > span { overflow-wrap: anywhere; }
-.platform-share-value small { color: var(--muted); min-width: 4ch; font-size: .7rem; }
-.platform-share-track { height: 6px; border-radius: 6px; background: #17314d; margin-top: 8px; overflow: hidden; }
+.platform-share-value { min-width: 0; text-align: right; color: #e0e9f6; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.platform-share-meter { display: flex; gap: 10px; align-items: center; justify-content: flex-end; margin-top: 8px; }
+.platform-share-percentage { color: var(--muted); font-size: .75rem; font-variant-numeric: tabular-nums; text-align: right; }
+.platform-share-track { flex: 1; min-width: 0; height: 6px; border-radius: 6px; background: #17314d; overflow: hidden; }
 .platform-share-fill { height: 100%; border-radius: inherit; background: var(--accent); }
 .platform-share-fill.bolt_food { background: #00d48c; }
 .platform-share-fill.uber_eats { background: #38bdf8; }
