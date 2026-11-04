@@ -1,41 +1,62 @@
 import { formatMoney } from '../utils/shiftFormat.js';
-import { ChartNoAxesColumnIncreasing, Clock, Package, Wallet } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, ChartNoAxesColumnIncreasing, Clock, Gauge, Minus, Package, Route, Wallet } from 'lucide-react';
 
 function number(value) {
-  return value === null ? 'Brak danych' : Number(value).toLocaleString('pl-PL', { maximumFractionDigits: 2 });
+  return value == null ? 'Brak danych' : Number(value).toLocaleString('pl-PL', { maximumFractionDigits: 2 });
 }
 
 function money(value) {
-  return value === null ? 'Brak danych' : formatMoney(value);
+  return value == null ? 'Brak danych' : formatMoney(value);
 }
 
-function summaryMetrics(summary) {
-  return [
-    ['Zarobek', money(summary.totalEarnings), Wallet],
-    ['Zamówienia', number(summary.totalOrders), Package],
-    ['Czas pracy', `${number(summary.totalHours)} godz.`, Clock],
-    ['Zarobek / h', money(summary.earningsPerHour), ChartNoAxesColumnIncreasing],
-    ['Zamówienia / h', number(summary.ordersPerHour)],
-    ['Łączne koszty w okresie', money(summary.totalExpenses)],
-    ['Liczba zmian', number(summary.shiftCount)],
-    ['Łączny dystans', summary.distanceShiftCount ? `${number(summary.totalDistance)} km` : 'Brak danych'],
-    ['Średni zarobek na zmianę', money(summary.earningsPerShift)],
-    ['Zarobek na kilometr (zł/km)', money(summary.earningsPerKm)],
-  ];
+const comparisonReasons = {
+  no_current_observations: 'Brak bieżących danych',
+  no_previous_observations: 'Brak poprzednich danych',
+  undefined_metric: 'Nieobliczalny wskaźnik',
+  previous_zero: 'Poprzedni wynik: 0',
+};
+const percent = new Intl.NumberFormat('pl-PL', {
+  minimumFractionDigits: 1, maximumFractionDigits: 1, signDisplay: 'exceptZero',
+});
+
+function MetricComparison({ metric, neutral }) {
+  if (metric?.changePercent == null || metric.reason) {
+    return <span className="metric-comparison">{comparisonReasons[metric?.reason] ?? 'Brak porównania'}</span>;
+  }
+  // Format the final backend percentage; never derive it from card values.
+  const change = Number(metric.changePercent);
+  const ChangeIcon = change > 0 ? ArrowUpRight : change < 0 ? ArrowDownRight : Minus;
+  const tone = neutral || change === 0 ? 'neutral' : change > 0 ? 'up' : 'down';
+  return <span className="metric-comparison" data-tone={tone}>
+    <ChangeIcon size={14} aria-hidden="true" /><span>{percent.format(change)}%</span>
+  </span>;
 }
 
 export default function DashboardSummary({ summary }) {
-  const metrics = summaryMetrics(summary);
+  const metrics = [
+    ['totalEarnings', 'Zarobek', money(summary.totalEarnings), Wallet],
+    ['totalHours', 'Czas pracy', summary.totalHours == null ? 'Brak danych' : `${number(summary.totalHours)} godz.`, Clock],
+    ['totalOrders', 'Zamówienia', number(summary.totalOrders), Package],
+    ['earningsPerHour', 'Zarobek / h', money(summary.earningsPerHour), ChartNoAxesColumnIncreasing],
+    ['earningsPerKm', 'Stawka / km', money(summary.earningsPerKm), Route],
+    ['ordersPerHour', 'Dostawy / h', number(summary.ordersPerHour), Gauge],
+  ];
+  const comparison = summary.selection?.kind === 'all' ? null : summary.comparison;
+  const previousPeriod = summary.selection?.kind === 'month' ? 'miesiąca' : 'tygodnia';
 
   return (
     <section className="analytics-section" aria-labelledby="analytics-summary-title">
       <h2 id="analytics-summary-title" className="analytics-section-title">Podsumowanie</h2>
+      {comparison && <p className="muted text-xs">Zmiana względem {summary.selection?.isPartial
+        ? `analogicznej części poprzedniego ${previousPeriod}` : `poprzedniego ${previousPeriod}`}</p>}
       {summary.shiftCount === 0 && <p>Brak uzupełnionych zmian w wybranym okresie.</p>}
       <dl className="metric-grid analytics-kpis">
-        {metrics.slice(0, 4).map(([label, value, MetricIcon]) => (
-          <div key={label} className="card metric-card">
+        {metrics.map(([key, label, value, MetricIcon], index) => (
+          <div key={key} data-metric={key} className={`card metric-card${index < 4 ? ' analytics-kpi-primary' : ''}`}>
             <dt><span>{label}</span><span className="metric-icon"><MetricIcon size={22} strokeWidth={1.8} aria-hidden="true" /></span></dt>
-            <dd>{value}</dd>
+            <dd><span className="analytics-kpi-value">{value}</span>
+              {comparison && <MetricComparison metric={comparison.metrics[key]} neutral={key === 'totalHours'} />}
+            </dd>
           </div>
         ))}
       </dl>
@@ -44,10 +65,15 @@ export default function DashboardSummary({ summary }) {
 }
 
 export function DashboardDetails({ summary }) {
-  const metrics = summaryMetrics(summary);
+  const metrics = [
+    ['Łączne koszty w okresie', money(summary.totalExpenses)],
+    ['Liczba zmian', number(summary.shiftCount)],
+    ['Łączny dystans', summary.distanceShiftCount ? `${number(summary.totalDistance)} km` : 'Brak danych'],
+    ['Średni zarobek na zmianę', money(summary.earningsPerShift)],
+  ];
   return <section className="analytics-section" aria-labelledby="additional-metrics-title">
         <h3 id="additional-metrics-title" className="analytics-chart-title">Wskaźniki podsumowania <span className="muted text-xs font-normal">· wszystkie platformy</span></h3>
-        <dl className="metric-grid analytics-extra-metrics">{metrics.slice(4).map(([label, value]) => <div key={label} className="metric-card">
+        <dl className="metric-grid analytics-extra-metrics">{metrics.map(([label, value]) => <div key={label} className="metric-card">
           <dt className="muted text-xs">{label}</dt><dd>{value}</dd>
         </div>)}</dl>
         <p className="muted text-xs">Dystans: {summary.distanceShiftCount} z {summary.shiftCount} zmian. Zł/km dotyczy tylko zmian z podanym dystansem.</p>
