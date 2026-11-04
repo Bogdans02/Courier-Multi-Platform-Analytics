@@ -66,14 +66,15 @@ export default function DashboardSummary({ summary }) {
 
 export function DashboardDetails({ summary }) {
   const metrics = [
-    ['Łączne koszty w okresie', money(summary.totalExpenses)],
+    ['Średni zarobek na zmianę', money(summary.earningsPerShift)],
+    ['Średni zarobek na zamówienie', money(summary.earningsPerOrder)],
     ['Liczba zmian', number(summary.shiftCount)],
     ['Łączny dystans', summary.distanceShiftCount ? `${number(summary.totalDistance)} km` : 'Brak danych'],
-    ['Średni zarobek na zmianę', money(summary.earningsPerShift)],
+    ['Łączne koszty w okresie', money(summary.totalExpenses)],
   ];
   return <section className="analytics-section" aria-labelledby="additional-metrics-title">
-        <h3 id="additional-metrics-title" className="analytics-chart-title">Wskaźniki podsumowania <span className="muted text-xs font-normal">· wszystkie platformy</span></h3>
-        <dl className="metric-grid analytics-extra-metrics">{metrics.map(([label, value]) => <div key={label} className="metric-card">
+        <h3 id="additional-metrics-title" className="analytics-chart-title">Dodatkowe wskaźniki <span className="muted text-xs font-normal">· wszystkie platformy</span></h3>
+        <dl className="analytics-extra-metrics">{metrics.map(([label, value]) => <div key={label} className="metric-card">
           <dt className="muted text-xs">{label}</dt><dd>{value}</dd>
         </div>)}</dl>
         <p className="muted text-xs">Dystans: {summary.distanceShiftCount} z {summary.shiftCount} zmian. Zł/km dotyczy tylko zmian z podanym dystansem.</p>

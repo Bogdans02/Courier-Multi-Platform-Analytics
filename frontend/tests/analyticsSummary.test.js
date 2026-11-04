@@ -22,7 +22,7 @@ function fixture() {
     mode: 'gross', selection: { kind: 'week', isPartial: true }, shiftCount: 2,
     totalEarnings: '400.00', totalHours: 10, totalOrders: 20,
     earningsPerHour: '40.00', earningsPerKm: '4.00', ordersPerHour: '2.00',
-    distanceShiftCount: 1, totalDistance: '50.00', totalExpenses: '15.00', earningsPerShift: '200.00',
+    distanceShiftCount: 1, totalDistance: '50.00', totalExpenses: '15.00', earningsPerShift: '200.00', earningsPerOrder: '20.00',
     comparison: { metrics: Object.fromEntries(keys.map(key => [key,
       { previousValue: 1, changePercent: '12.3', reason: null }])) },
   };
@@ -41,7 +41,7 @@ test('summary renders six ordered KPI and preserves only additional metrics in t
   assert.match(card(markup, 'ordersPerHour'), /analytics-kpi-value">2</);
   assert.equal((markup.match(/analytics-kpi-primary/g) ?? []).length, 4);
   const additional = renderToStaticMarkup(createElement(Details, { summary }));
-  for (const label of ['Łączne koszty w okresie', 'Liczba zmian', 'Łączny dystans', 'Średni zarobek na zmianę']) {
+  for (const label of ['Łączne koszty w okresie', 'Liczba zmian', 'Łączny dystans', 'Średni zarobek na zmianę', 'Średni zarobek na zamówienie']) {
     assert.ok(additional.includes(label));
   }
   assert.doesNotMatch(additional, /Stawka \/ km|Dostawy \/ h|Zamówienia \/ h|Zarobek na kilometr/);
