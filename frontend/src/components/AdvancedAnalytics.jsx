@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
-import { getDetails } from '../services/api/analytics.js';
+import useAnalyticsDetails from '../hooks/useAnalyticsDetails.js';
 import { platforms } from '../utils/platformEntries.js';
 import { analyticsChartData } from '../utils/analyticsFormat.js';
 import { formatMoney } from '../utils/shiftFormat.js';
 import AnalyticsChart from './AnalyticsChart.jsx';
+import AnalyticsEfficiency from './AnalyticsEfficiency.jsx';
 import AnalyticsDataTable from './AnalyticsDataTable.jsx';
 import { DashboardDetails } from './DashboardSummary.jsx';
 import PlatformBadge from './PlatformBadge.jsx';
@@ -29,54 +30,27 @@ function ResultChart({ title, kind, rows, description, mode }) {
 export default function AdvancedAnalytics({ token, selection, mode = 'gross', onSessionExpired, summary, showIncompleteWarning = true }) {
   const [platform, setPlatform] = useState('all');
   const [tableKind, setTableKind] = useState('trend');
-  const [reload, setReload] = useState(0);
-  const [result, setResult] = useState({ key: '', status: 'loading', details: null, message: '' });
+  const [metricKey, setMetricKey] = useState('totalEarnings');
   const calendar = selection?.kind;
-  const anchor = selection?.anchor;
   const asOf = selection?.asOf;
-  const key = JSON.stringify([token, calendar, anchor, asOf, platform, mode, reload]);
-  const current = result.key === key ? result : { status: 'loading' };
-
-  useEffect(() => {
-    if (!calendar || !asOf) return;
-    const controller = new AbortController();
-    getDetails(token, { calendar, anchor, asOf }, platform, controller.signal, mode)
-      .then(({ details }) => {
-        if (!controller.signal.aborted) setResult({ key, status: 'success', details, message: '' });
-      })
-      .catch((error) => {
-        if (controller.signal.aborted) return;
-        if (error.status === 401) onSessionExpired();
-        else setResult({ key, status: 'error', details: null, message: error.message });
-      });
-    return () => controller.abort();
-  }, [token, calendar, anchor, asOf, platform, mode, key, onSessionExpired]);
+  const global = useAnalyticsDetails({ token, selection, mode, platform: 'all', onSessionExpired });
+  const filtered = useAnalyticsDetails({ token, selection, mode, platform, onSessionExpired,
+    enabled: platform !== 'all' && global.status === 'success' });
+  const current = platform === 'all' || global.status !== 'success' ? global : filtered;
 
   if (!calendar || !asOf) return null;
   const details = current.details;
   return <>
     {details && showIncompleteWarning && <IncompleteShiftsNotice count={details.incompleteShiftCount} />}
     <section className="analytics-section" aria-labelledby="analytics-trends-title">
-      <h2 id="analytics-trends-title" className="analytics-section-title">Trendy</h2>
-      <div className="analytics-chart-filter">
-        <label htmlFor="analytics-platform" className="mb-2 block">Platforma na wykresach czasowych</label>
-        <select id="analytics-platform" value={platform} onChange={(event) => setPlatform(event.target.value)}
-          className="w-full rounded border border-slate-600 bg-slate-900 p-3">
-          <option value="all">Wszystkie platformy</option>
-          {platforms.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
-        </select>
-      </div>
-      {current.status === 'loading' && <p role="status">Wczytywanie wykresów...</p>}
-      {current.status === 'error' && <div>
-        <p role="alert">{current.message}</p>
-        <button type="button" className="py-2 underline" onClick={() => setReload((value) => value + 1)}>Spróbuj ponownie</button>
+      <h2 id="analytics-trends-title" className="analytics-section-title">Efektywność pracy</h2>
+      {global.status === 'loading' && <p role="status">Wczytywanie wykresów...</p>}
+      {global.status === 'error' && <div>
+        <p role="alert">{global.message}</p>
+        <button type="button" className="py-2 underline" onClick={global.retry}>Spróbuj ponownie</button>
       </div>}
-      {details && <>
-        {details.shiftCount === 0 && <p className="muted text-sm">Brak uzupełnionych zmian dla wybranej platformy i okresu.</p>}
-        <ResultChart title="Dzienny trend zarobków" kind="trend" rows={details.trend} mode={details.mode}
-          description="Według dnia rozpoczęcia zmiany w Polsce." />
-        <ResultChart title="Wyniki według dnia tygodnia" kind="weekdays" rows={details.weekdays} mode={details.mode} />
-      </>}
+      {global.details && <AnalyticsEfficiency details={global.details} selection={selection}
+        availableRange={summary?.availableRange} metricKey={metricKey} onMetricChange={setMetricKey} />}
     </section>
     {details && <section className="analytics-section" aria-labelledby="analytics-platforms-title">
         <h2 id="analytics-platforms-title" className="analytics-section-title">Platformy</h2>
@@ -98,7 +72,20 @@ export default function AdvancedAnalytics({ token, selection, mode = 'gross', on
         <summary><h2>Pozostałe analizy</h2><ChevronDown className="disclosure-icon" size={20} aria-hidden="true" /></summary>
         <div className="analytics-disclosure-content">
           {summary ? <DashboardDetails summary={summary} /> : <p className="muted text-sm">Wskaźniki podsumowania są chwilowo niedostępne.</p>}
+          <div className="analytics-chart-filter">
+            <label htmlFor="analytics-platform" className="mb-2 block">Platforma w analizach szczegółowych</label>
+            <select id="analytics-platform" value={platform} onChange={event => setPlatform(event.target.value)}
+              className="w-full rounded border border-slate-600 bg-slate-900 p-3">
+              <option value="all">Wszystkie platformy</option>
+              {platforms.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
+            </select>
+          </div>
+          {platform !== 'all' && global.status === 'success' && current.status === 'error' && <div>
+            <p role="alert">{current.message}</p>
+            <button type="button" className="py-2 underline" onClick={current.retry}>Spróbuj ponownie</button>
+          </div>}
           {details ? <>
+          {details.shiftCount === 0 && <p className="muted text-sm">Brak uzupełnionych zmian dla wybranej platformy i okresu.</p>}
           <ResultChart title="Porównanie miesięcy" kind="months" rows={details.months} mode={details.mode}
             description="Bieżący miesiąc i miesiące na granicach wybranego okresu mogą być niepełne." />
           <ResultChart title="Czas rozpoczęcia zmiany" kind="startTimes" rows={details.startTimes} mode={details.mode}

@@ -1,4 +1,5 @@
 import { platforms } from './platformEntries.js';
+import { adjacentCalendarAnchor } from './analyticsCalendar.js';
 
 const weekdays = ['Poniedziałek', 'Wtorek', 'Środa', 'Czwartek', 'Piątek', 'Sobota', 'Niedziela'];
 const startTimes = ['00:00–06:00', '06:00–12:00', '12:00–18:00', '18:00–24:00'];
@@ -25,10 +26,39 @@ export function analyticsLabel(kind, row) {
   return row.key;
 }
 
-export function analyticsChartData(kind, rows) {
+export function analyticsChartData(kind, rows, metric = 'totalEarnings') {
   return {
     labels: rows.map((row) => analyticsLabel(kind, row)),
     // No sample is distinct from a measured zero.
-    values: rows.map((row) => row.shiftCount ? Number(row.totalEarnings) : null),
+    values: rows.map((row) => row.shiftCount && row[metric] != null ? Number(row[metric]) : null),
   };
+}
+
+export const efficiencyMetrics = [
+  { key: 'totalEarnings', label: 'Zarobek', unit: 'zł' },
+  { key: 'earningsPerHour', label: 'Zł/h', unit: 'zł/h' },
+  { key: 'ordersPerHour', label: 'Dostawy/h', unit: 'dostawy/h' },
+];
+
+export function efficiencyTrend(details, selection, availableRange) {
+  const monthly = selection.kind === 'all';
+  const kind = monthly ? 'months' : 'trend';
+  const groups = new Map(details[kind].map(row => [row.key, row]));
+  const currentDate = availableRange?.currentDate ?? new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Warsaw', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date(selection.asOf));
+  const first = monthly ? availableRange?.earliestDate?.slice(0, 7) ?? details.months[0]?.key ?? currentDate.slice(0, 7)
+    : selection.anchor;
+  const end = monthly ? currentDate.slice(0, 7)
+    : adjacentCalendarAnchor(selection.kind, selection.anchor, 1);
+  const rows = [];
+  // Pad labels only. Missing observations stay NULL; no aggregates are computed here.
+  const date = new Date(`${monthly ? `${first}-01` : first}T00:00:00Z`);
+  for (let key = first; monthly ? key <= end : key < end;
+    key = date.toISOString().slice(0, monthly ? 7 : 10)) {
+    rows.push(groups.get(key) ?? { key, shiftCount: 0, totalEarnings: null, earningsPerHour: null, ordersPerHour: null });
+    if (monthly) date.setUTCMonth(date.getUTCMonth() + 1);
+    else date.setUTCDate(date.getUTCDate() + 1);
+  }
+  return { kind, rows };
 }

@@ -5,7 +5,7 @@ const money = (value) => value === null ? 'Brak danych' : formatMoney(value);
 const share = (value) => value === null ? 'Brak danych' : `${Number(value).toLocaleString('pl-PL')}%`;
 
 export default function AnalyticsDataTable({ title, kind, rows, mode, platform }) {
-  const showHourly = platform === 'all' && ['weekdays', 'months', 'startTimes'].includes(kind);
+  const showHourly = platform === 'all' && ['trend', 'weekdays', 'months', 'startTimes'].includes(kind);
   const moneyLabel = mode === 'estimated_net' ? 'Szacowane netto' : 'Brutto';
   return <div className="analytics-table-scroll" role="region" aria-label={`Tabela: ${title}`} tabIndex={0}>
     <table className="w-full text-left text-sm">
@@ -16,7 +16,11 @@ export default function AnalyticsDataTable({ title, kind, rows, mode, platform }
         <th scope="col" className="p-2">{moneyLabel}</th>
         <th scope="col" className="p-2">Zamówienia</th>
         <th scope="col" className="p-2">Zł/zamówienie</th>
-        {showHourly && <th scope="col" className="p-2">Zł/h</th>}
+        {showHourly && <>
+          <th scope="col" className="p-2">Czas pracy (h)</th>
+          <th scope="col" className="p-2">Zł/h</th>
+          <th scope="col" className="p-2">Dostawy/h</th>
+        </>}
         {kind === 'platforms' && <>
           <th scope="col" className="p-2">Udział zarobków</th>
           <th scope="col" className="p-2">Udział zamówień</th>
@@ -28,7 +32,11 @@ export default function AnalyticsDataTable({ title, kind, rows, mode, platform }
         <td className="whitespace-nowrap p-2">{row.shiftCount ? money(row.totalEarnings) : 'Brak danych'}</td>
         <td className="p-2">{row.shiftCount ? row.totalOrders : 'Brak danych'}</td>
         <td className="whitespace-nowrap p-2">{money(row.earningsPerOrder)}</td>
-        {showHourly && <td className="whitespace-nowrap p-2">{money(row.earningsPerHour)}</td>}
+        {showHourly && <>
+          <td className="p-2">{row.shiftCount && row.totalHours != null ? Number(row.totalHours).toLocaleString('pl-PL', { maximumFractionDigits: 2 }) : 'Brak danych'}</td>
+          <td className="whitespace-nowrap p-2">{money(row.earningsPerHour)}</td>
+          <td className="p-2">{row.ordersPerHour == null ? 'Brak danych' : Number(row.ordersPerHour).toLocaleString('pl-PL', { maximumFractionDigits: 2 })}</td>
+        </>}
         {kind === 'platforms' && <><td className="p-2">{share(row.earningsShare)}</td><td className="p-2">{share(row.ordersShare)}</td></>}
       </tr>)}</tbody>
     </table>
