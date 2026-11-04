@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import Chart from 'chart.js/auto';
 import { analyticsAxisLabel } from '../utils/analyticsFormat.js';
 
-export default function AnalyticsChart({ title, type = 'bar', labels, values, unit = 'PLN', compact = false }) {
+export default function AnalyticsChart({ title, type = 'bar', labels, values, unit = 'PLN', compact = false, showAllLabels = false }) {
   const canvas = useRef(null);
 
   useEffect(() => {
@@ -39,7 +39,7 @@ export default function AnalyticsChart({ title, type = 'bar', labels, values, un
         locale: 'pl-PL',
         plugins: { legend: { display: false }, tooltip: { backgroundColor: '#102b48', titleColor: '#f2f5fc', bodyColor: '#f2f5fc', padding: 12, cornerRadius: 8 } },
         scales: {
-          x: { grid: { display: false }, ticks: { color: '#a9bcd6', autoSkip: !compact, maxTicksLimit: 7, maxRotation: 0, font: { size: compact ? 10 : 11 }, callback: function (value) {
+          x: { grid: { display: false }, ticks: { color: '#a9bcd6', autoSkip: !compact && !showAllLabels, maxTicksLimit: showAllLabels ? labels.length : 7, maxRotation: 0, font: { size: compact ? 10 : 11 }, callback: function (value) {
             return analyticsAxisLabel(this.getLabelForValue(value));
           } }, border: { display: false } },
           y: { beginAtZero: true, grid: { color: '#25436155' }, border: { display: false }, ticks: { color: '#a9bcd6', maxTicksLimit: 4, font: { size: 10 } }, title: { display: !compact, text: unit, color: '#a9bcd6', font: { size: 10 } } },
@@ -47,7 +47,7 @@ export default function AnalyticsChart({ title, type = 'bar', labels, values, un
       },
     });
     return () => chart.destroy();
-  }, [type, labels, values, unit, compact]);
+  }, [type, labels, values, unit, compact, showAllLabels]);
 
   return (
     <div className={`relative w-full ${compact ? 'my-3 h-32 sm:h-40' : 'analytics-chart'}`}>

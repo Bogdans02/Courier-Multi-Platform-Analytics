@@ -1,17 +1,17 @@
 import { useEffect, useState } from 'react';
 import { getDetails } from '../services/api/analytics.js';
 
-export default function useAnalyticsDetails({ token, selection, mode, platform, onSessionExpired, enabled = true }) {
+export default function useAnalyticsDetails({ token, selection, mode, platform, eventPlatform, onSessionExpired, enabled = true }) {
   const [reload, setReload] = useState(0);
   const [result, setResult] = useState({ key: '', status: 'loading' });
   const calendar = selection?.kind;
   const anchor = selection?.anchor;
   const asOf = selection?.asOf;
-  const key = JSON.stringify([token, calendar, anchor, asOf, platform, mode, reload]);
+  const key = JSON.stringify([token, calendar, anchor, asOf, platform, eventPlatform, mode, reload]);
   useEffect(() => {
     if (!enabled || !calendar || !asOf) return;
     const controller = new AbortController();
-    getDetails(token, { calendar, anchor, asOf }, platform, controller.signal, mode)
+    getDetails(token, { calendar, anchor, asOf }, platform, controller.signal, mode, eventPlatform)
       .then(({ details }) => {
         if (!controller.signal.aborted) setResult({ key, status: 'success', details });
       })
@@ -21,6 +21,6 @@ export default function useAnalyticsDetails({ token, selection, mode, platform, 
         else setResult({ key, status: 'error', message: error.message });
       });
     return () => controller.abort();
-  }, [token, calendar, anchor, asOf, platform, mode, enabled, key, onSessionExpired]);
+  }, [token, calendar, anchor, asOf, platform, eventPlatform, mode, enabled, key, onSessionExpired]);
   return { ...(result.key === key ? result : { status: 'loading' }), retry: () => setReload(value => value + 1) };
 }

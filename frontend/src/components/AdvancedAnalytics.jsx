@@ -7,6 +7,7 @@ import { formatMoney } from '../utils/shiftFormat.js';
 import AnalyticsChart from './AnalyticsChart.jsx';
 import AnalyticsEfficiency from './AnalyticsEfficiency.jsx';
 import AnalyticsPlatforms from './AnalyticsPlatforms.jsx';
+import AnalyticsHourlyActivity from './AnalyticsHourlyActivity.jsx';
 import AnalyticsDataTable from './AnalyticsDataTable.jsx';
 import { DashboardDetails } from './DashboardSummary.jsx';
 import IncompleteShiftsNotice from './IncompleteShiftsNotice.jsx';
@@ -32,12 +33,16 @@ export default function AdvancedAnalytics({ token, selection, mode = 'gross', on
   const [tableKind, setTableKind] = useState('trend');
   const [metricKey, setMetricKey] = useState('totalEarnings');
   const [platformMetric, setPlatformMetric] = useState('earnings');
+  const [eventPlatform, setEventPlatform] = useState('all');
   const calendar = selection?.kind;
   const asOf = selection?.asOf;
   const global = useAnalyticsDetails({ token, selection, mode, platform: 'all', onSessionExpired });
   const filtered = useAnalyticsDetails({ token, selection, mode, platform, onSessionExpired,
     enabled: platform !== 'all' && global.status === 'success' });
+  const hourlyFiltered = useAnalyticsDetails({ token, selection, mode, platform: 'all', eventPlatform, onSessionExpired,
+    enabled: eventPlatform !== 'all' && global.status === 'success' });
   const current = platform === 'all' || global.status !== 'success' ? global : filtered;
+  const hourly = eventPlatform === 'all' || global.status !== 'success' ? global : hourlyFiltered;
 
   if (!calendar || !asOf) return null;
   const details = current.details;
@@ -55,6 +60,8 @@ export default function AdvancedAnalytics({ token, selection, mode = 'gross', on
     </section>
     {global.details && <AnalyticsPlatforms rows={global.details.platforms} mode={global.details.mode}
       metricKey={platformMetric} onMetricChange={setPlatformMetric} />}
+    <AnalyticsHourlyActivity activity={hourly.details?.hourlyActivity} status={hourly.status} message={hourly.message}
+      eventPlatform={eventPlatform} onEventPlatformChange={setEventPlatform} onRetry={hourly.retry} />
     {(details || summary) && <>
       <details className="analytics-disclosure" id="additional-analytics">
         <summary><h2>Pozostałe analizy</h2><ChevronDown className="disclosure-icon" size={20} aria-hidden="true" /></summary>

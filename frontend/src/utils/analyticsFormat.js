@@ -34,6 +34,15 @@ export function analyticsChartData(kind, rows, metric = 'totalEarnings') {
   };
 }
 
+export function hourlyActivityChartData(activity) {
+  const metric = activity.mode === 'rate' ? 'registeredOrdersPerHour' : 'registeredOrders';
+  return {
+    labels: activity.groups.map(group => group.label),
+    values: activity.groups.map(group => group.status === 'available' && group[metric] != null
+      ? Number(group[metric]) : null),
+  };
+}
+
 export const efficiencyMetrics = [
   { key: 'totalEarnings', label: 'Zarobek', unit: 'zł' },
   { key: 'earningsPerHour', label: 'Zł/h', unit: 'zł/h' },

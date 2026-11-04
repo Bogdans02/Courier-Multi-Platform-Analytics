@@ -6,12 +6,12 @@ export async function getSummary(token, selection, signal, mode = 'gross') {
   return requestAnalytics(token, `summary?${analyticsQuery(selection, mode)}`, signal);
 }
 
-export async function getDetails(token, selection, platform, signal, mode = 'gross') {
+export async function getDetails(token, selection, platform, signal, mode = 'gross', eventPlatform) {
   return requestAnalytics(token,
-    `details?${analyticsQuery(selection, mode, platform)}`, signal);
+    `details?${analyticsQuery(selection, mode, platform, eventPlatform)}`, signal);
 }
 
-function analyticsQuery(selection, mode, platform) {
+function analyticsQuery(selection, mode, platform, eventPlatform) {
   const query = new URLSearchParams();
   if (typeof selection === 'string') query.set('period', selection);
   else {
@@ -20,6 +20,7 @@ function analyticsQuery(selection, mode, platform) {
     if (selection.asOf) query.set('asOf', selection.asOf);
   }
   if (platform !== undefined) query.set('platform', platform);
+  if (eventPlatform !== undefined) query.set('eventPlatform', eventPlatform);
   if (mode !== 'gross') query.set('mode', mode);
   return query.toString();
 }
