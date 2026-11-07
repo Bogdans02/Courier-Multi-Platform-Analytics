@@ -8,7 +8,7 @@ import AnalyticsPeriodSelector from '../components/AnalyticsPeriodSelector.jsx';
 import { initialAnalyticsCalendar, selectAnalyticsCalendar, stepAnalyticsCalendar } from '../utils/analyticsCalendar.js';
 import { formatRate } from '../utils/netSettings.js';
 import useEarningsMode from '../hooks/useEarningsMode.js';
-import { Info, RefreshCw } from 'lucide-react';
+import { ChevronDown, Info, RefreshCw } from 'lucide-react';
 
 export default function Dashboard({ session, onSessionExpired }) {
   const [calendarSelection, setCalendarSelection] = useState(initialAnalyticsCalendar);
@@ -71,14 +71,17 @@ export default function Dashboard({ session, onSessionExpired }) {
         }}>{label}</button>)}
       </div>}
       {settingsError && <p role="status" className="text-sm text-amber-300">Nie udało się odczytać ustawień netto. Początkowo wybrano brutto. Możesz zmienić tryb przełącznikiem lub otworzyć ekran ponownie.</p>}
-      {mode === 'estimated_net' && statistics.summary?.deductionRate != null && <div className="card estimated-net-note flex items-start gap-3">
-        <Info size={20} strokeWidth={1.8} className="mt-0.5 shrink-0 text-sky-300" aria-hidden="true" />
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-sky-300">Szacowane netto · {formatRate(statistics.summary.deductionRate)}</p>
-          <p className="muted mt-1 text-xs">Szacunek na podstawie aktualnego profilu. Nie stanowi rozliczenia podatkowego.</p>
+      {mode === 'estimated_net' && statistics.summary?.deductionRate != null && <details className="card estimated-net-note notice-disclosure">
+        <summary className="text-sky-300">
+          <Info size={20} strokeWidth={1.8} className="shrink-0" aria-hidden="true" />
+          <span>Szacowane netto · {formatRate(statistics.summary.deductionRate)}</span>
+          <ChevronDown size={16} className="notice-chevron shrink-0" aria-hidden="true" />
+        </summary>
+        <div className="notice-description">
+          <p className="muted text-xs">Szacunek na podstawie aktualnego profilu. Nie stanowi rozliczenia podatkowego.</p>
           <Link to="/settings" className="text-link inline-flex min-h-8 items-center">Ustawienia szacowanego netto →</Link>
         </div>
-      </div>}
+      </details>}
       {statistics.status === 'success' && <IncompleteShiftsNotice count={statistics.summary.incompleteShiftCount} />}
       </div>
       {statistics.status === 'loading' && <p role="status">Wczytywanie statystyk...</p>}

@@ -127,6 +127,13 @@
 .incomplete-shifts-note .text-link { color: var(--accent); }
 .estimated-net-note { padding: 8px 12px; border-color: #254f74; }
 .estimated-net-note .text-link { color: #7dc5f8; }
+.notice-disclosure { padding: 0; }
+.notice-disclosure summary { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 8px 12px; list-style: none; font-size: .8rem; font-weight: 600; }
+.notice-disclosure summary::-webkit-details-marker { display: none; }
+.notice-disclosure summary > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.notice-disclosure summary:focus-visible { outline-offset: -3px; border-radius: 16px; }
+.notice-disclosure details[open] .notice-chevron, details.notice-disclosure[open] .notice-chevron { transform: rotate(180deg); }
+.notice-description { padding: 0 12px 8px 44px; }
 .week-total { margin: 6px 0; font-size: clamp(1.9rem, 7.8vw, 2.5rem); font-weight: 750; letter-spacing: -.045em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; line-height: 1.2; }
 .mode-badge { display: inline-flex; align-items: center; padding: 4px 9px; border: 1px solid #294358; border-radius: 7px; color: #b8cae1; font-size: .65rem; }
 .card-footer-link { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 44px; border-top: 1px solid #173350; color: #57c7ff; font-size: .75rem; }
