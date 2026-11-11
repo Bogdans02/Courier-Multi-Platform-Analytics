@@ -31,7 +31,7 @@ export default function AdvancedAnalytics({ token, selection, mode = 'gross', on
       {global.status === 'loading' && <p role="status">Wczytywanie wykresów...</p>}
       {global.status === 'error' && <div>
         <p role="alert">{global.message}</p>
-        <button type="button" className="py-2 underline" onClick={global.retry}>Spróbuj ponownie</button>
+        <button type="button" className="button-secondary mt-2" onClick={global.retry}>Spróbuj ponownie</button>
       </div>}
       {global.details && <AnalyticsEfficiency details={global.details} selection={selection}
         availableRange={summary?.availableRange} metricKey={metricKey} onMetricChange={setMetricKey} />}

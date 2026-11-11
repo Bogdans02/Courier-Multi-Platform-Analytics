@@ -16,7 +16,7 @@ export default function Login({ onLogin }) {
       <div className="page-heading"><h1>Zaloguj się</h1></div>
       {location.state?.registered && <p role="status">Konto zostało utworzone. Zaloguj się.</p>}
       <AuthForm mode="login" onSubmit={submit} />
-      <p>Nie masz konta? <Link to="/register" className="underline">Zarejestruj się</Link></p>
+      <p>Nie masz konta? <Link to="/register" className="text-link">Zarejestruj się</Link></p>
     </>
   );
 }

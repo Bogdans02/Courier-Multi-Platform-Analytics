@@ -55,14 +55,14 @@ export default function Settings({ session, onSessionExpired }) {
     <p className="muted text-sm">Szacowane netto to przybliżenie, nie rozliczenie podatkowe. Stawki profili są orientacyjne.</p>
     {status === 'loading' && <p role="status">Wczytywanie ustawień...</p>}
     {error && <p role="alert" className="text-red-400">{error}</p>}
-    {status === 'error' && <button type="button" className="py-2 underline" onClick={() => {
+    {status === 'error' && <button type="button" className="button-secondary mt-2" onClick={() => {
       setError(''); setStatus('loading'); setReload((value) => value + 1);
     }}>Spróbuj ponownie</button>}
     {status === 'success' && <form onSubmit={save} className="card space-y-3">
       <fieldset disabled={pending} className="space-y-3 disabled:opacity-60" onChange={() => setMessage('')}>
         <legend className="font-semibold">Szacowane netto</legend>
         <label htmlFor="net-profile" className="block">Profil szacowanego netto</label>
-        <select id="net-profile" value={netProfile} className="w-full rounded border border-slate-600 bg-slate-900 p-3"
+        <select id="net-profile" value={netProfile} className="form-input"
           onChange={(event) => { setNetProfile(event.target.value); setError(''); }}>
           <option value="">Wybierz profil</option>
           {profiles.map(({ value, label }) => <option value={value} key={value}>{label}</option>)}
@@ -75,17 +75,17 @@ export default function Settings({ session, onSessionExpired }) {
           <label htmlFor="deduction-percent" className="block">Szacowana stawka potrąceń (%)</label>
           <input id="deduction-percent" inputMode="decimal" value={percent}
             onChange={(event) => { setPercent(event.target.value); setError(''); }}
-            className="w-full rounded border border-slate-600 bg-slate-900 p-3" aria-describedby="custom-rate-help" />
+            className="form-input" aria-describedby="custom-rate-help" />
           <p id="custom-rate-help" className="text-sm">0–100%, maks. 3 miejsca po przecinku. Stawka końcowa, bez automatycznego doliczania PPK.</p>
         </>}
         <p>Szacowana stawka potrąceń: <strong>{rate === null ? 'Uzupełnij profil i stawkę' : formatRate(rate)}</strong></p>
-        <button type="submit" className="rounded button-primary">
+        <button type="submit" className="button-primary">
           {pending ? 'Zapisywanie...' : 'Zapisz ustawienia'}
         </button>
       </fieldset>
     </form>}
     {message && <p role="status">{message}</p>}
-    <p><Link to="/dashboard" className="underline">Przejdź do statystyk</Link></p>
+    <p><Link to="/dashboard" className="text-link">Przejdź do statystyk</Link></p>
     <p><Link to="/more" className="text-link">Wróć do Więcej</Link></p>
   </>;
 }

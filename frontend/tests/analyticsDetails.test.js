@@ -94,7 +94,7 @@ test('platform filters retain assignable earnings/orders and suppress hourly col
     assert.equal((markup.match(/<canvas /g) ?? []).length, 1);
   }
   const comparison = render({ ...fixture(), platform: 'wolt', tableKind: 'platforms' });
-  assert.match(comparison, /<select id="analytics-platform" disabled=""><option value="all" selected/);
+  assert.match(comparison, /<select id="analytics-platform" class="form-input" disabled=""><option value="all" selected/);
   assert.match(comparison, /Wszystkie platformy w wybranym okresie/);
   assert.match(table(comparison), /Udział zarobków/);
   assert.equal((comparison.match(/<canvas /g) ?? []).length, 0);

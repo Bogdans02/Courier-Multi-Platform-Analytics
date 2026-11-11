@@ -26,7 +26,7 @@ export default function AnalyticsDataTable({ title, kind, rows, mode, platform }
           <th scope="col" className="p-2">Udział zamówień</th>
         </>}
       </tr></thead>
-      <tbody>{rows.map((row) => <tr key={row.key ?? row.platform} className="border-t border-slate-700">
+      <tbody>{rows.map((row) => <tr key={row.key ?? row.platform} className="border-t border-line">
         <th scope="row" className="p-2 font-normal">{analyticsLabel(kind, row)}</th>
         <td className="p-2">{row.shiftCount}</td>
         <td className="whitespace-nowrap p-2">{row.shiftCount ? money(row.totalEarnings) : 'Brak danych'}</td>

@@ -49,7 +49,7 @@ export default function Home({ session, onSessionExpired }) {
     {result.status === 'loading' && <p role="status">Wczytywanie podsumowania...</p>}
     {result.status === 'error' && <div className="card space-y-3">
       <p role="alert">{result.message}</p>
-      <button type="button" onClick={() => { setResult({ status: 'loading' }); setReload((value) => value + 1); }}>Spróbuj ponownie</button>
+      <button type="button" className="button-secondary" onClick={() => { setResult({ status: 'loading' }); setReload((value) => value + 1); }}>Spróbuj ponownie</button>
     </div>}
     {result.status === 'success' && <>
       <section className="card week-card" aria-labelledby="week-title">

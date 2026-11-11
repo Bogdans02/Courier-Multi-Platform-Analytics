@@ -80,7 +80,7 @@ export default function ActiveShift({ session, onSessionExpired }) {
             </div>
             {shift && <p className="muted text-xs">Rozpoczęcie: {formatDateTime(shift.startedAt)}</p>}
           <button type="button" disabled={pending || trackingPending || !!error} onClick={act}
-            className={`mt-6 w-full ${shift ? 'button-stop' : 'button-primary'}`}>
+            className={`mt-6 w-full ${shift ? 'button-danger' : 'button-primary'}`}>
             {shift ? <Square size={22} strokeWidth={1.8} aria-hidden="true" /> : <Play size={22} strokeWidth={1.8} aria-hidden="true" />}
             {pending ? 'Proszę czekać...' : shift ? 'Zakończ zmianę' : 'Rozpocznij zmianę'}
           </button>
@@ -100,7 +100,7 @@ export default function ActiveShift({ session, onSessionExpired }) {
         </>
       )}
       {error && <div><p role="alert" className="text-red-400">{error}</p>
-        <button type="button" disabled={pending} onClick={() => { setLoading(true); setReload((value) => value + 1); }} className="py-2 underline">Spróbuj ponownie</button>
+        <button type="button" disabled={pending} onClick={() => { setLoading(true); setReload((value) => value + 1); }} className="button-secondary mt-2">Spróbuj ponownie</button>
       </div>}
       <p className="text-center"><Link to="/history" className="text-link">Zobacz historię zmian →</Link></p>
     </>

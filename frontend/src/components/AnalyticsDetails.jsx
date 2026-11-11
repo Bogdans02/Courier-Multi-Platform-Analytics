@@ -30,13 +30,13 @@ export default function AnalyticsDetails({ summary, result, platform, onPlatform
       <div className="analytics-details-controls">
         <div>
           <label htmlFor="analytics-table-kind" className="mb-2 block text-sm">Zestawienie</label>
-          <select id="analytics-table-kind" value={tableKind} onChange={event => onTableKindChange(event.target.value)}>
+          <select id="analytics-table-kind" className="form-input" value={tableKind} onChange={event => onTableKindChange(event.target.value)}>
             {views.map(item => <option key={item.key} value={item.key}>{item.title}</option>)}
           </select>
         </div>
         <div>
           <label htmlFor="analytics-platform" className="mb-2 block text-sm">Platforma w zestawieniu</label>
-          <select id="analytics-platform" value={platformComparison ? 'all' : platform} disabled={platformComparison}
+          <select id="analytics-platform" className="form-input" value={platformComparison ? 'all' : platform} disabled={platformComparison}
             onChange={event => onPlatformChange(event.target.value)}>
             <option value="all">Wszystkie platformy</option>
             {platforms.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}
@@ -49,7 +49,7 @@ export default function AnalyticsDetails({ summary, result, platform, onPlatform
       {result.status === 'loading' && <p role="status">Wczytywanie szczegółowych danych...</p>}
       {result.status === 'error' && <div>
         <p role="alert">{result.message}</p>
-        <button type="button" className="py-2 underline" onClick={result.retry}>Spróbuj ponownie</button>
+        <button type="button" className="button-secondary mt-2" onClick={result.retry}>Spróbuj ponownie</button>
       </div>}
       {details && <>
         {rows.length > 0 && !rows.some(row => row.shiftCount > 0) && <p className="muted text-sm">Brak uzupełnionych zmian w wybranym zestawieniu.</p>}

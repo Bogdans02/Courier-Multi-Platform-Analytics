@@ -19,7 +19,7 @@ export default function AnalyticsPeriodSelector({ selection, range, confirmedAnc
       <button type="button" aria-label={`Poprzedni ${unit}`} disabled={!canStepAnalyticsCalendar(selection, -1, range)}
         onClick={() => onStep(-1)}><ChevronLeft size={20} aria-hidden="true" /></button>
       <label className="sr-only" htmlFor="analytics-calendar-period">Wybierz {unit}</label>
-      <select id="analytics-calendar-period" value={selectedAnchor} disabled={!range}
+      <select id="analytics-calendar-period" className="form-input" value={selectedAnchor} disabled={!range}
         onChange={event => onAnchorChange(event.target.value)}>
         {options.map(option => <option key={option.anchor} value={option.anchor}>{option.label}</option>)}
       </select>

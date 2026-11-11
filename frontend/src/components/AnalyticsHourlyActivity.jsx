@@ -71,7 +71,7 @@ export default function AnalyticsHourlyActivity({ activity, status, message, eve
     <h2 id="analytics-hourly-title" className="analytics-section-title">Najlepsze godziny</h2>
     <div>
       <label htmlFor="analytics-event-platform" className="mb-2 block text-sm">Platforma zarejestrowanych dostaw</label>
-      <select id="analytics-event-platform" value={eventPlatform} onChange={event => onEventPlatformChange(event.target.value)}>
+      <select id="analytics-event-platform" className="form-input" value={eventPlatform} onChange={event => onEventPlatformChange(event.target.value)}>
         <option value="all">Wszystkie platformy</option>
         {platforms.map(platform => <option key={platform.value} value={platform.value}>{platform.label}</option>)}
       </select>
@@ -80,7 +80,7 @@ export default function AnalyticsHourlyActivity({ activity, status, message, eve
     {status === 'loading' && <p role="status">Wczytywanie danych godzinowych...</p>}
     {status === 'error' && <div>
       <p role="alert">{message}</p>
-      <button type="button" className="py-2 underline" onClick={onRetry}>Spróbuj ponownie</button>
+      <button type="button" className="button-secondary mt-2" onClick={onRetry}>Spróbuj ponownie</button>
     </div>}
     {status === 'success' && activity && <ActivityResult activity={activity} />}
   </section>;

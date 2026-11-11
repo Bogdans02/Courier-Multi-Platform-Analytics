@@ -88,7 +88,7 @@ export default function Dashboard({ session, onSessionExpired }) {
       {statistics.status === 'error' && <div>
         <p role="alert" className="text-red-400">{statistics.message}</p>
         {mode === 'estimated_net' && <Link to="/settings" className="text-link">Ustaw profil szacowanego netto</Link>}
-        <button type="button" className="py-2 underline" onClick={() => {
+        <button type="button" className="button-secondary mt-2" onClick={() => {
           setReload((value) => value + 1);
         }}>Spróbuj ponownie</button>
       </div>}

@@ -75,7 +75,7 @@ export default function Expenses({ session, onSessionExpired, adding = false }) 
     {current.status === 'loading' && <p role="status">Wczytywanie kosztów i zmian...</p>}
     {current.status === 'error' && <div>
       <p role="alert" className="text-red-400">{current.message}</p>
-      <button type="button" className="py-2 underline" onClick={() => setReload((value) => value + 1)}>Spróbuj ponownie</button>
+      <button type="button" className="button-secondary mt-2" onClick={() => setReload((value) => value + 1)}>Spróbuj ponownie</button>
     </div>}
     {adding && current.status === 'success' && <ExpenseForm key={`new/${reload}`}
       shifts={current.shifts} initialShiftId={location.state?.shiftId}
@@ -94,19 +94,19 @@ export default function Expenses({ session, onSessionExpired, adding = false }) 
       catch (error) { setFilterError(error.message); }
     }}>
       <label htmlFor="expense-from" className="block">Data od</label>
-      <input id="expense-from" type="date" value={draftFilters.from} className="w-full rounded border border-slate-600 p-3"
+      <input id="expense-from" type="date" value={draftFilters.from} className="form-input"
         onChange={(event) => setDraftFilters({ ...draftFilters, from: event.target.value })} />
       <label htmlFor="expense-to" className="block">Data do</label>
-      <input id="expense-to" type="date" value={draftFilters.to} className="w-full rounded border border-slate-600 p-3"
+      <input id="expense-to" type="date" value={draftFilters.to} className="form-input"
         onChange={(event) => setDraftFilters({ ...draftFilters, to: event.target.value })} />
       <label htmlFor="expense-filter-category" className="block">Kategoria</label>
-      <select id="expense-filter-category" value={draftFilters.category} className="w-full rounded border border-slate-600 bg-slate-900 p-3"
+      <select id="expense-filter-category" value={draftFilters.category} className="form-input"
         onChange={(event) => setDraftFilters({ ...draftFilters, category: event.target.value })}>
         <option value="">Wszystkie kategorie</option>
         {expenseCategories.map(({ value, label }) => <option value={value} key={value}>{label}</option>)}
       </select>
       {filterError && <p role="alert" className="text-red-400">{filterError}</p>}
-      <button type="submit" className="rounded border border-slate-600 px-4 py-3">Zastosuj filtry</button>
+      <button type="submit" className="button-secondary">Zastosuj filtry</button>
     </form>
     </details>
     <h2 className="text-xl font-semibold">Historia kosztów</h2>
@@ -117,19 +117,21 @@ export default function Expenses({ session, onSessionExpired, adding = false }) 
         <p className="font-semibold">{expenseCategories.find(({ value }) => value === expense.category)?.label ?? expense.category}: {formatMoney(expense.amount)}</p>
         <p>Data: {expense.expenseDate.split('-').reverse().join('.')}</p>
         {expense.note && <p className="whitespace-pre-wrap break-words">{expense.note}</p>}
-        <p>{expense.shiftId ? <Link to={`/shifts/${expense.shiftId}`} className="underline">Powiązana zmiana #{expense.shiftId}</Link> : 'Bez powiązania ze zmianą'}</p>
+        <p>{expense.shiftId ? <Link to={`/shifts/${expense.shiftId}`} className="text-link">Powiązana zmiana #{expense.shiftId}</Link> : 'Bez powiązania ze zmianą'}</p>
         {editing?.id === expense.id ? <ExpenseForm key={`${expense.id}/${reload}`}
           expense={editing} shifts={current.shifts} onSubmit={save} onCancel={() => setEditing(null)}
         /> : confirmDelete === expense.id ? <div className="space-y-2">
           <p>Czy na pewno usunąć ten koszt? Tej operacji nie można cofnąć.</p>
-          <button type="button" disabled={pending} onClick={() => remove(expense.id)}
-            className="mr-3 rounded bg-red-700 px-4 py-3 text-white disabled:opacity-60">{pending ? 'Usuwanie...' : 'Potwierdź usunięcie'}</button>
-          <button type="button" disabled={pending} onClick={() => setConfirmDelete(null)} className="py-3 underline">Anuluj usuwanie</button>
+          <div className="flex flex-wrap gap-3">
+            <button type="button" disabled={pending} onClick={() => remove(expense.id)}
+              className="button-danger">{pending ? 'Usuwanie...' : 'Potwierdź usunięcie'}</button>
+            <button type="button" disabled={pending} onClick={() => setConfirmDelete(null)} className="button-secondary">Anuluj usuwanie</button>
+          </div>
         </div> : <div className="flex flex-wrap gap-3">
           <button type="button" disabled={pending} onClick={() => { setEditing(expense); setConfirmDelete(null); setMessage(''); setError(''); }}
-            className="rounded border border-slate-600 px-4 py-3">Edytuj koszt</button>
+            className="button-secondary">Edytuj koszt</button>
           <button type="button" disabled={pending} onClick={() => { setConfirmDelete(expense.id); setError(''); }}
-            className="rounded border border-red-400 px-4 py-3 text-red-400">Usuń koszt</button>
+            className="button-danger">Usuń koszt</button>
         </div>}
       </li>)}</ul>)}
     </>}

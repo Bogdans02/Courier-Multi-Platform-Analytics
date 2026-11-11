@@ -57,7 +57,7 @@ export default function FloatingTrackingControl({ session, shiftId, disabled, on
     <p className="muted text-sm" role="status">{!floatingTracking.available ? 'Dostępny w aplikacji Android. Zamówienia możesz wpisać w podsumowaniu.'
       : state.loading ? 'Sprawdzanie licznika...' : state.active ? 'Licznik aktywny' : !state.granted ? 'Brak zgody na wyświetlanie nad innymi aplikacjami.' : 'Licznik wyłączony'}</p>
     {floatingTracking.available && <button type="button" onClick={toggle} disabled={disabled || pending || state.loading}
-      className="w-full rounded border border-slate-600 px-4 py-3 disabled:opacity-60">
+      className="button-secondary w-full">
       {pending ? 'Proszę czekać...' : state.active ? 'Wyłącz licznik zamówień' : 'Włącz licznik zamówień'}
     </button>}
     {state.active && state.notificationsGranted === false && <p className="muted text-sm">Powiadomienia są wyłączone w ustawieniach Androida. Licznik nadal działa.</p>}

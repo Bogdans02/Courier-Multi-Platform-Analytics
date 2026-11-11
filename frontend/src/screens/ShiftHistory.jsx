@@ -29,7 +29,7 @@ export default function ShiftHistory({ session, onSessionExpired }) {
       <div className="section-heading"><p className="muted text-sm">Zapisane zmiany{!loading && !error ? `: ${shifts.length}` : ''}</p><Link to="/shifts/active" className="text-link">Twoja zmiana →</Link></div>
       {loading && <p role="status">Wczytywanie historii...</p>}
       {error && <div><p role="alert" className="text-red-400">{error}</p>
-        <button type="button" onClick={() => { setLoading(true); setReload((value) => value + 1); }} className="py-2 underline">Spróbuj ponownie</button>
+        <button type="button" onClick={() => { setLoading(true); setReload((value) => value + 1); }} className="button-secondary mt-2">Spróbuj ponownie</button>
       </div>}
       {!loading && !error && (shifts.length === 0 ? <p className="empty-state">Nie masz jeszcze zakończonych zmian.</p> : (
         <ul className="space-y-3">

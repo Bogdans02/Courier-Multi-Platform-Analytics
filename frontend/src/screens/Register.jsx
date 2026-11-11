@@ -14,7 +14,7 @@ export default function Register() {
     <>
       <div className="page-heading"><h1>Utwórz konto</h1></div>
       <AuthForm mode="register" onSubmit={submit} />
-      <p>Masz już konto? <Link to="/login" className="underline">Zaloguj się</Link></p>
+      <p>Masz już konto? <Link to="/login" className="text-link">Zaloguj się</Link></p>
     </>
   );
 }

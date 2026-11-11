@@ -68,7 +68,7 @@ export default function ShiftDetails({ session, onSessionExpired }) {
       <h1 className="text-2xl font-semibold">{location.state?.summary ? 'Podsumowanie zmiany' : 'Szczegóły zmiany'}</h1>
       {loading && <p role="status">Wczytywanie zmiany...</p>}
       {error && <div><p role="alert" className="text-red-400">{error}</p>
-        {!shift && <button type="button" onClick={() => { setLoading(true); setReload((value) => value + 1); }} className="py-2 underline">Spróbuj ponownie</button>}
+        {!shift && <button type="button" onClick={() => { setLoading(true); setReload((value) => value + 1); }} className="button-secondary mt-2">Spróbuj ponownie</button>}
       </div>}
       {!loading && shift && (
         <>
@@ -85,21 +85,21 @@ export default function ShiftDetails({ session, onSessionExpired }) {
               ? entriesFromOrderEvents(draft.orderEvents) : undefined} onSubmit={save} onCancel={() => setEditing(false)} />
           ) : (
             <div className="flex flex-wrap gap-3">
-              {shift.status === 'completed' && <button type="button" disabled={pending || confirmDelete} onClick={() => setEditing(true)} className="rounded border border-slate-600 px-4 py-3">Edytuj zmianę</button>}
-              {shift.status === 'active' && <Link to="/shifts/active" className="py-3 underline">Przejdź do aktywnej zmiany</Link>}
-              {!confirmDelete && <button type="button" onClick={() => setConfirmDelete(true)} className="rounded border border-red-400 px-4 py-3 text-red-400">Usuń zmianę</button>}
+              {shift.status === 'completed' && <button type="button" disabled={pending || confirmDelete} onClick={() => setEditing(true)} className="button-secondary">Edytuj zmianę</button>}
+              {shift.status === 'active' && <Link to="/shifts/active" className="button-secondary">Przejdź do aktywnej zmiany</Link>}
+              {!confirmDelete && <button type="button" onClick={() => setConfirmDelete(true)} className="button-danger">Usuń zmianę</button>}
             </div>
           )}
-          {confirmDelete && <div className="space-y-3 rounded border border-red-400 p-4">
+          {confirmDelete && <div className="space-y-3 rounded-ui border border-danger-line p-4">
             <p>Czy na pewno chcesz usunąć tę zmianę? Tej operacji nie można cofnąć.</p>
             <div className="flex flex-wrap gap-3">
-              <button type="button" disabled={pending} onClick={remove} className="rounded bg-red-700 px-4 py-3 text-white disabled:opacity-60">{pending ? 'Usuwanie...' : 'Potwierdź usunięcie'}</button>
-              <button type="button" disabled={pending} onClick={() => setConfirmDelete(false)} className="rounded border border-slate-600 px-4 py-3">Anuluj usuwanie</button>
+              <button type="button" disabled={pending} onClick={remove} className="button-danger">{pending ? 'Usuwanie...' : 'Potwierdź usunięcie'}</button>
+              <button type="button" disabled={pending} onClick={() => setConfirmDelete(false)} className="button-secondary">Anuluj usuwanie</button>
             </div>
           </div>}
         </>
       )}
-      <p><Link to="/history" className="underline">Wróć do historii</Link></p>
+      <p><Link to="/history" className="text-link">Wróć do historii</Link></p>
     </>
   );
 }

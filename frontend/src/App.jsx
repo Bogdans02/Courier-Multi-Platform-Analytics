@@ -35,9 +35,9 @@ export default function App() {
         {status === 'restoring' && <p role="status">Odtwarzanie sesji...</p>}
         {status === 'clearing' && <p role="status">Wylogowywanie...</p>}
         {message && <p role="alert" className="text-red-400">{message}</p>}
-        {status === 'restore_error' && <button type="button" className="px-3 py-2 underline" onClick={retryRestore}>Spróbuj ponownie</button>}
+        {status === 'restore_error' && <button type="button" className="button-secondary" onClick={retryRestore}>Spróbuj ponownie</button>}
         {(status === 'restore_error' || status === 'clear_error') && (
-          <button type="button" className="px-3 py-2 underline" onClick={expireSession}>
+          <button type="button" className="button-secondary" onClick={expireSession}>
             {status === 'clear_error' ? 'Ponów wylogowanie' : 'Wyloguj się'}
           </button>
         )}

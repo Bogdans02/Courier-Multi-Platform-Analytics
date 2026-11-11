@@ -12,7 +12,7 @@ export default function ShiftPlatformSummary({ shift }) {
           <span className="text-sm">{formatMoney(entry.earningsGross)} brutto · {entry.ordersCount} zam.</span>
         </li>)}
       </ul>
-      <p className="border-t border-slate-700 pt-3">Łączny zarobek brutto: <strong className="earnings">{formatMoney(shift.totalEarnings)}</strong></p>
+      <p className="border-t border-line pt-3">Łączny zarobek brutto: <strong className="earnings">{formatMoney(shift.totalEarnings)}</strong></p>
       {shift.estimatedNetEarnings != null
         ? <p>Szacowane netto: <strong className="earnings">{formatMoney(shift.estimatedNetEarnings)}</strong></p>
         : <p className="muted text-sm">Aby zobaczyć szacowane netto, <Link to="/settings" className="text-link">ustaw profil</Link>.</p>}

@@ -2,8 +2,8 @@ import { useEffect, useRef } from 'react';
 import Chart from 'chart.js/auto';
 import { analyticsAxisLabel } from '../utils/analyticsFormat.js';
 
-// Chart.js rysuje na canvasie i nie widzi CSS, więc kolory czytam ze zmiennych z index.css.
-function cssColor(name) {
+// Chart.js rysuje na canvasie i nie widzi CSS, więc kolory i czcionkę czytam ze zmiennych z index.css.
+function cssVar(name) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
@@ -11,9 +11,12 @@ export default function AnalyticsChart({ title, type = 'bar', labels, values, un
   const canvas = useRef(null);
 
   useEffect(() => {
-    const accent = cssColor('--color-accent');
-    const text = cssColor('--color-text');
-    const muted = cssColor('--color-text-muted');
+    const accent = cssVar('--color-accent');
+    const text = cssVar('--color-text');
+    const muted = cssVar('--color-text-muted');
+    // Ta sama czcionka co w aplikacji i minimum 12px dla wszystkich napisów na wykresie.
+    Chart.defaults.font.family = cssVar('--font-sans');
+    Chart.defaults.font.size = 12;
     const chart = new Chart(canvas.current, {
       type,
       data: {
@@ -45,12 +48,12 @@ export default function AnalyticsChart({ title, type = 'bar', labels, values, un
         layout: { padding: compact ? 0 : { top: 8, right: 4 } },
         animation: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? false : { duration: 300 },
         locale: 'pl-PL',
-        plugins: { legend: { display: false }, tooltip: { backgroundColor: cssColor('--color-surface-raised'), titleColor: text, bodyColor: text, padding: 12, cornerRadius: 8 } },
+        plugins: { legend: { display: false }, tooltip: { backgroundColor: cssVar('--color-surface-raised'), titleColor: text, bodyColor: text, padding: 12, cornerRadius: 12 } },
         scales: {
-          x: { grid: { display: false }, ticks: { color: muted, autoSkip: !compact && !showAllLabels, maxTicksLimit: showAllLabels ? labels.length : 7, maxRotation: 0, font: { size: compact ? 10 : 11 }, callback: function (value) {
+          x: { grid: { display: false }, ticks: { color: muted, autoSkip: !compact && !showAllLabels, maxTicksLimit: showAllLabels ? labels.length : 7, maxRotation: 0, callback: function (value) {
             return analyticsAxisLabel(this.getLabelForValue(value));
           } }, border: { display: false } },
-          y: { beginAtZero: true, grid: { color: '#25436155' }, border: { display: false }, ticks: { color: muted, maxTicksLimit: 4, font: { size: 10 } }, title: { display: !compact, text: unit, color: muted, font: { size: 10 } } },
+          y: { beginAtZero: true, grid: { color: '#25436155' }, border: { display: false }, ticks: { color: muted, maxTicksLimit: 4 }, title: { display: !compact, text: unit, color: muted } },
         },
       },
     });

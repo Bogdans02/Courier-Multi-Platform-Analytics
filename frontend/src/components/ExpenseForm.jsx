@@ -21,33 +21,32 @@ export default function ExpenseForm({ expense, shifts, initialShiftId, onSubmit,
     finally { setPending(false); }
   }
 
-  const inputClass = 'w-full rounded border border-slate-600 bg-slate-900 p-3';
-  return <form onSubmit={submit} className="space-y-3 card">
+    return <form onSubmit={submit} className="space-y-3 card">
     {expense && <h2 className="text-xl font-semibold">Edytuj koszt</h2>}
     {error && <p role="alert" className="text-red-400">{error}</p>}
     <fieldset disabled={pending} className="space-y-3 disabled:opacity-60">
       <legend className="sr-only">Dane kosztu</legend>
       <label htmlFor="expense-category" className="block">Kategoria</label>
-      <select id="expense-category" name="category" value={values.category} onChange={change} className={inputClass}>
+      <select id="expense-category" name="category" value={values.category} onChange={change} className="form-input">
         <option value="">Wybierz kategorię</option>
         {expenseCategories.map(({ value, label }) => <option value={value} key={value}>{label}</option>)}
       </select>
       <label htmlFor="expense-amount" className="block">Kwota kosztu (PLN)</label>
-      <input id="expense-amount" name="amount" inputMode="decimal" value={values.amount} onChange={change} className={inputClass} />
+      <input id="expense-amount" name="amount" inputMode="decimal" value={values.amount} onChange={change} className="form-input" />
       <label htmlFor="expense-date" className="block">Data kosztu</label>
-      <input id="expense-date" name="expenseDate" type="date" value={values.expenseDate} onChange={change} className={inputClass} />
+      <input id="expense-date" name="expenseDate" type="date" value={values.expenseDate} onChange={change} className="form-input" />
       <label htmlFor="expense-shift" className="block">Powiązana zmiana (opcjonalnie)</label>
-      <select id="expense-shift" name="shiftId" value={values.shiftId} onChange={change} className={inputClass}>
+      <select id="expense-shift" name="shiftId" value={values.shiftId} onChange={change} className="form-input">
         <option value="">Bez powiązania ze zmianą</option>
         {shifts.map((shift) => <option value={shift.id} key={shift.id}>
           {formatDateTime(shift.startedAt)}{shift.status === 'active' ? ' — trwa' : ''} (#{shift.id})
         </option>)}
       </select>
       <label htmlFor="expense-note" className="block">Notatka (opcjonalnie)</label>
-      <textarea id="expense-note" name="note" rows={3} value={values.note} onChange={change} className={inputClass} />
+      <textarea id="expense-note" name="note" rows={3} value={values.note} onChange={change} className="form-input" />
       <div className="flex flex-wrap gap-3">
-        <button type="submit" className="rounded button-primary">{pending ? 'Zapisywanie...' : 'Zapisz koszt'}</button>
-        <button type="button" onClick={onCancel} className="rounded border border-slate-600 px-4 py-3">{expense ? 'Anuluj edycję' : 'Anuluj'}</button>
+        <button type="submit" className="button-primary">{pending ? 'Zapisywanie...' : 'Zapisz koszt'}</button>
+        <button type="button" onClick={onCancel} className="button-secondary">{expense ? 'Anuluj edycję' : 'Anuluj'}</button>
       </div>
     </fieldset>
   </form>;
