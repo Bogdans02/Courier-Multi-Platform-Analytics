@@ -38,12 +38,12 @@ export default function ShiftForm({ shift, initialEntries, onSubmit, onCancel })
 
   async function submit(event) {
     event.preventDefault();
-    const message = validateShiftForm(values);
+    const message = validateShiftForm(values, shift);
     setError(message);
     if (message) return;
     setPending(true);
     try {
-      await onSubmit(shiftFormPayload(values));
+      await onSubmit(shiftFormPayload(values, shift));
     } catch (error) {
       setError(error.message);
     } finally {
@@ -56,13 +56,13 @@ export default function ShiftForm({ shift, initialEntries, onSubmit, onCancel })
       <fieldset disabled={pending} className="space-y-4">
         <div>
           <label htmlFor="startedAt" className="mb-1 block font-medium">Rozpoczęcie</label>
-          <input id="startedAt" name="startedAt" type="datetime-local" step="0.001" required
+          <input id="startedAt" name="startedAt" type="datetime-local" required
             value={values.startedAt} onChange={change}
             className="form-input" />
         </div>
         <div>
           <label htmlFor="endedAt" className="mb-1 block font-medium">Zakończenie</label>
-          <input id="endedAt" name="endedAt" type="datetime-local" step="0.001" required
+          <input id="endedAt" name="endedAt" type="datetime-local" required
             value={values.endedAt} onChange={change}
             className="form-input" />
         </div>

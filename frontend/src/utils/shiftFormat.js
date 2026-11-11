@@ -22,7 +22,8 @@ export function formatMoney(value) {
   return Number(value).toLocaleString('pl-PL', { style: 'currency', currency: 'PLN' });
 }
 
+// Czas lokalny w formacie pola datetime-local, tylko do minuty: "2026-10-10T10:00".
 export function toLocalDateTime(value) {
   const date = new Date(value);
-  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, -1);
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 }

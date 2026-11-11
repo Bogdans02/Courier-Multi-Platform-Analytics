@@ -17,11 +17,28 @@ test('shift form validates time order and distance and converts local dates to U
     ...['-1', 'abc', '1.234', '100000000'].map((distanceKm) => ({ ...valid, distanceKm }))]) {
     assert.notEqual(validateShiftForm(values), '');
   }
-  const utc = '2026-10-10T08:00:00.123Z';
-  assert.equal(new Date(toLocalDateTime(utc)).toISOString(), utc);
+  // The datetime-local field shows only hours and minutes.
+  const utc = '2026-10-10T08:00:30.123Z';
+  assert.match(toLocalDateTime(utc), /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/);
+  assert.equal(new Date(toLocalDateTime(utc)).toISOString(), '2026-10-10T08:00:00.000Z');
   assert.equal(formatDuration(9001), '2 godz. 30 min 1 s');
   assert.equal(formatDistance(null), 'Nie podano');
   assert.equal(formatDistance('0.00'), '0 km');
+});
+
+test('shift form keeps exact server times for untouched fields and uses the edited minute otherwise', () => {
+  const original = { startedAt: '2026-10-10T08:00:30.123Z', endedAt: '2026-10-10T12:15:45.500Z' };
+  const untouched = { ...valid, startedAt: toLocalDateTime(original.startedAt), endedAt: toLocalDateTime(original.endedAt) };
+  assert.equal(shiftFormPayload(untouched, original).startedAt, original.startedAt);
+  assert.equal(shiftFormPayload(untouched, original).endedAt, original.endedAt);
+  const edited = { ...untouched, endedAt: '2026-10-10T14:00' };
+  assert.equal(shiftFormPayload(edited, original).endedAt, new Date('2026-10-10T14:00').toISOString());
+  assert.equal(shiftFormPayload(edited, original).startedAt, original.startedAt);
+  // A shift shorter than a minute shows the same minute twice but is still valid.
+  const short = { startedAt: '2026-10-10T08:00:05.000Z', endedAt: '2026-10-10T08:00:40.000Z' };
+  const sameMinute = { ...valid, startedAt: toLocalDateTime(short.startedAt), endedAt: toLocalDateTime(short.endedAt) };
+  assert.equal(validateShiftForm(sameMinute, short), '');
+  assert.notEqual(validateShiftForm(sameMinute), '');
 });
 
 test('shift form rejects impossible calendar dates instead of silently moving the shift to another day', () => {
