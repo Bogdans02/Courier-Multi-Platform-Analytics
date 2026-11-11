@@ -27,12 +27,13 @@ test('expense validation rejects malformed amounts, dates, categories, notes and
 });
 
 test('expense history validates inclusive date bounds and category filters', () => {
-  assert.deepEqual(validateExpenseFilters({}), { from: null, to: null, category: null });
+  assert.deepEqual(validateExpenseFilters({}), { from: null, to: null, category: null, shiftId: null });
   assert.deepEqual(validateExpenseFilters({ from: '2024-02-29', to: '2024-02-29', category: 'phone' }), {
-    from: '2024-02-29', to: '2024-02-29', category: 'phone',
+    from: '2024-02-29', to: '2024-02-29', category: 'phone', shiftId: null,
   });
+  assert.equal(validateExpenseFilters({ shiftId: '42' }).shiftId, 42);
   for (const query of [{ from: '2026-10-15', to: '2026-10-14' }, { from: 'invalid' }, { category: 'unknown' },
-    { category: ['fuel', 'other'] }, { to: ['2026-10-14'] }]) {
+    { category: ['fuel', 'other'] }, { to: ['2026-10-14'] }, { shiftId: '0' }, { shiftId: 'abc' }, { shiftId: ['1'] }]) {
     assert.throws(() => validateExpenseFilters(query), { status: 400 });
   }
 });

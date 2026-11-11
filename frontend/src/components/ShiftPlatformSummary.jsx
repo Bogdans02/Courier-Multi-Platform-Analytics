@@ -1,22 +1,32 @@
-import { formatMoney } from '../utils/shiftFormat.js';
-import PlatformBadge from './PlatformBadge.jsx';
 import { Link } from 'react-router';
+import { formatMoney } from '../utils/shiftFormat.js';
+import { platformPerOrder } from '../utils/shiftMetrics.js';
+import PlatformBadge from './PlatformBadge.jsx';
 
+// Zarobek każdej platformy w zmianie (brutto, tak jak wpisuje kurier) i sumy brutto / netto.
 export default function ShiftPlatformSummary({ shift }) {
-  if (!shift.platformEntries.length) return <p>Uzupełnij platformy, zarobki i zamówienia w edycji zmiany.</p>;
   return (
-    <div className="card space-y-4">
-      <ul className="space-y-3">
-        {shift.platformEntries.map((entry) => <li key={entry.platform} className="flex flex-wrap items-center justify-between gap-2">
-          <PlatformBadge platform={entry.platform} />
-          <span className="text-sm">{formatMoney(entry.earningsGross)} brutto · {entry.ordersCount} zam.</span>
-        </li>)}
+    <section className="card" aria-labelledby="shift-platforms-title">
+      <h2 id="shift-platforms-title" className="card-title">Platformy</h2>
+      <ul className="detail-list">
+        {shift.platformEntries.map((entry) => {
+          const perOrder = platformPerOrder(entry);
+          return <li key={entry.platform}>
+            <PlatformBadge platform={entry.platform} />
+            <span className="detail-list-value">
+              <strong>{formatMoney(entry.earningsGross)}</strong>
+              <small>{entry.ordersCount} zam.{perOrder === null ? '' : ` · ${formatMoney(perOrder)}/zam.`}</small>
+            </span>
+          </li>;
+        })}
       </ul>
-      <p className="border-t border-line pt-3">Łączny zarobek brutto: <strong className="earnings">{formatMoney(shift.totalEarnings)}</strong></p>
-      {shift.estimatedNetEarnings != null
-        ? <p>Szacowane netto: <strong className="earnings">{formatMoney(shift.estimatedNetEarnings)}</strong></p>
-        : <p className="muted text-sm">Aby zobaczyć szacowane netto, <Link to="/settings" className="text-link">ustaw profil</Link>.</p>}
-      <p>Łączna liczba zamówień: <strong>{shift.totalOrders}</strong></p>
-    </div>
+      <dl className="detail-totals">
+        <div><dt>Razem brutto</dt><dd>{formatMoney(shift.totalEarnings)}</dd></div>
+        {shift.estimatedNetEarnings != null && <div><dt>Szacowane netto</dt><dd>{formatMoney(shift.estimatedNetEarnings)}</dd></div>}
+      </dl>
+      {shift.estimatedNetEarnings == null && <p className="muted text-sm mt-3">
+        Aby zobaczyć szacowane netto, <Link to="/settings" className="text-link">ustaw profil</Link>.
+      </p>}
+    </section>
   );
 }

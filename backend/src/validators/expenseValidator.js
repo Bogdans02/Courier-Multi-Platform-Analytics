@@ -43,5 +43,7 @@ export function validateExpenseFilters(query) {
     throw httpError(400, 'Wybierz poprawną kategorię kosztu.');
   }
   if (from && to && from > to) throw httpError(400, 'Data od nie może być późniejsza niż data do.');
-  return { from, to, category };
+  // shiftId pozwala pokazać koszty jednej zmiany na ekranie jej szczegółów.
+  const shiftId = query.shiftId === undefined ? null : validateExpenseId(query.shiftId);
+  return { from, to, category, shiftId };
 }

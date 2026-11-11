@@ -7,10 +7,11 @@ export function createExpenseRepository(pool) {
       const { rowCount } = await pool.query('SELECT id FROM shifts WHERE user_id = $1 AND id = $2', [userId, shiftId]);
       return rowCount > 0;
     },
-    async list(userId, { from, to, category }) {
+    async list(userId, { from, to, category, shiftId = null }) {
       const { rows } = await pool.query(`SELECT ${fields} FROM expenses WHERE user_id = $1
         AND ($2::date IS NULL OR expense_date >= $2) AND ($3::date IS NULL OR expense_date <= $3)
-        AND ($4::text IS NULL OR category = $4) ORDER BY expense_date DESC, id DESC`, [userId, from, to, category]);
+        AND ($4::text IS NULL OR category = $4) AND ($5::integer IS NULL OR shift_id = $5)
+        ORDER BY expense_date DESC, id DESC`, [userId, from, to, category, shiftId]);
       return rows;
     },
     async findById(userId, id) {

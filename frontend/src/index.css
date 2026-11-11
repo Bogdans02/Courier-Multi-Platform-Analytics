@@ -208,11 +208,25 @@
 .platform-pyszne_pl { background: var(--color-pyszne-pl); border-color: var(--color-pyszne-pl); color: var(--color-on-accent); }
 .platform-wolt { background: var(--color-wolt); border-color: var(--color-wolt); color: var(--color-on-accent); }
 .month-navigation-label { text-align: center; font-size: 1.05rem; font-weight: 650; }
-.history-summary dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-.history-summary dt { color: var(--color-text-muted); font-size: .75rem; }
-.history-summary dd { margin-top: 4px; font-size: 1rem; font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.history-summary-rate { color: var(--color-accent); }
+/* Rząd trzech wskaźników: podsumowanie miesiąca w Historii i wynik zmiany w szczegółach. */
+.history-summary dl, .metric-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.history-summary dt, .metric-row dt { color: var(--color-text-muted); font-size: .75rem; }
+.history-summary dd, .metric-row dd { margin-top: 4px; font-size: 1rem; font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.history-summary-rate, .accent-value { color: var(--color-accent); }
 .history-summary p { margin-top: 10px; }
+/* Szczegóły zmiany */
+.back-link { display: inline-flex; align-items: center; gap: 2px; align-self: flex-start; min-height: 44px; margin-bottom: -12px; color: var(--color-link); font-weight: 600; }
+.card-title { margin-bottom: 8px; font-size: .98rem; font-weight: 650; }
+.shift-result-amount { margin: 2px 0; font-size: 2rem; font-weight: 750; letter-spacing: -.03em; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.metric-row { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--color-line); }
+.detail-list li { display: flex; align-items: center; justify-content: space-between; gap: 6px 12px; padding: 10px 0; border-bottom: 1px solid var(--color-line); }
+.detail-list small { display: block; margin-top: 2px; font-size: .75rem; }
+.detail-list strong { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.detail-list-value { text-align: right; }
+.detail-list-value small { color: var(--color-text-muted); }
+.detail-totals > div { display: flex; justify-content: space-between; gap: 12px; padding-top: 10px; }
+.detail-totals dt { color: var(--color-text-soft); }
+.detail-totals dd { font-weight: 700; font-variant-numeric: tabular-nums; }
 .filter-chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
 .filter-chip { flex-shrink: 0; min-height: 44px; padding: 8px 14px; border: 1px solid var(--color-line-strong); background: var(--color-surface); color: var(--color-text-soft); font-size: .875rem; white-space: nowrap; }
 .filter-chip[aria-pressed="true"] { border-color: var(--color-accent); background: #ffb80014; color: var(--color-accent); }

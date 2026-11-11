@@ -128,6 +128,18 @@ test('optional shift links require ownership, support relinking and survive shif
   assert.equal(remaining.amount, valid.amount);
 });
 
+test('expenses can be listed for one shift, only within the token owner account', async () => {
+  const ownShift = await shift();
+  const foreignShift = await shift(other);
+  const linked = (await create({ ...valid, shiftId: ownShift })).body.expense;
+  await create(valid);
+  await create({ ...valid, shiftId: foreignShift }, otherToken);
+  assert.deepEqual((await request(`/expenses?shiftId=${ownShift}`)).body.expenses.map((row) => row.id), [linked.id]);
+  // Another user's shift ID never reveals their costs.
+  assert.deepEqual((await request(`/expenses?shiftId=${foreignShift}`)).body.expenses, []);
+  assert.equal((await request('/expenses?shiftId=abc')).status, 400);
+});
+
 test('invalid writes leave expenses unchanged and history filters validate date and category', async () => {
   const id = (await create()).body.expense.id;
   for (const body of [{ ...valid, amount: '-1' }, { ...valid, amount: '0.001' }, { ...valid, expenseDate: '2026-02-29' },
