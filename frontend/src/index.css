@@ -150,6 +150,8 @@
 .nav-item.active svg { filter: drop-shadow(0 0 8px #ffb80033); }
 .section-heading { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
 .section-heading h2 { font-size: .98rem; font-weight: 650; }
+/* Link obok nagłówka sekcji jest mniejszy, żeby nie konkurował z nagłówkiem. */
+.section-heading .text-link { font-size: .875rem; }
 .week-card { background: radial-gradient(ellipse at 0 0, #12385a55, transparent 70%), linear-gradient(140deg, #09213c, #06172c); padding: 16px 16px 0; }
 .week-card .section-heading h2, .week-card .week-range { color: var(--color-text-soft); font-size: .85rem; font-weight: 500; }
 .week-heading { align-items: flex-start; }
