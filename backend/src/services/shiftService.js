@@ -1,5 +1,5 @@
 import { httpError } from '../utils/httpError.js';
-import { validateShiftId, validateShiftUpdate } from '../validators/shiftValidator.js';
+import { validateMonth, validateShiftId, validateShiftUpdate } from '../validators/shiftValidator.js';
 
 function presentShift(row) {
   if (!row) return null;
@@ -43,8 +43,8 @@ export function createShiftService(shifts) {
     async active(userId) {
       return presentShift(await shifts.findActive(userId));
     },
-    async list(userId) {
-      return (await shifts.list(userId)).map(presentShift);
+    async list(userId, month) {
+      return (await shifts.list(userId, validateMonth(month))).map(presentShift);
     },
     async details(userId, value) {
       return presentShift(await findOwned(userId, validateShiftId(value)));

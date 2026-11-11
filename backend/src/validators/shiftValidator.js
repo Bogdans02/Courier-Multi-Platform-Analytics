@@ -32,6 +32,15 @@ export function validateShiftId(value) {
   return id;
 }
 
+// Miesiąc historii w formacie RRRR-MM, np. 2026-11. Brak parametru oznacza wszystkie zmiany.
+export function validateMonth(value) {
+  if (value === undefined) return null;
+  if (typeof value !== 'string' || !/^\d{4}-(0[1-9]|1[0-2])$/.test(value)) {
+    throw httpError(400, 'Podaj miesiąc w formacie RRRR-MM.');
+  }
+  return value;
+}
+
 function parseTime(value) {
   // API accepts explicit UTC times, avoiding ambiguous local dates.
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)) {

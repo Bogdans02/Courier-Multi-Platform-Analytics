@@ -211,6 +211,24 @@ test('history is newest first and all reads and mutations exclude another accoun
   assert.equal((await request('/active', { auth: secondToken })).body.shift.id, otherActive.id);
 });
 
+test('history can be limited to one month by the shift start in Polish time', async () => {
+  const october = await completedShift();
+  await request(`/${october.id}`, { method: 'PUT',
+    body: { ...times, startedAt: '2026-10-15T08:00:00.000Z', endedAt: '2026-10-15T10:00:00.000Z' } });
+  // 31.10 23:30 UTC is already 1 November 00:30 in Warsaw, so the shift belongs to November.
+  const november = await completedShift();
+  await request(`/${november.id}`, { method: 'PUT',
+    body: { ...times, startedAt: '2026-10-31T23:30:00.000Z', endedAt: '2026-11-01T02:00:00.000Z' } });
+  await completedShift(secondToken);
+  assert.deepEqual((await request('?month=2026-11')).body.shifts.map((row) => row.id), [november.id]);
+  assert.deepEqual((await request('?month=2026-10')).body.shifts.map((row) => row.id), [october.id]);
+  assert.deepEqual((await request('?month=2025-10')).body.shifts, []);
+  assert.equal((await request('')).body.shifts.length, 2);
+  for (const month of ['2026-13', '2026-1', 'abc']) {
+    assert.equal((await request(`?month=${month}`)).status, 400);
+  }
+});
+
 test('delete removes only the owned shift and deleting an active shift releases the start restriction', async () => {
   const completed = await completedShift();
   assert.equal((await request(`/${completed.id}`, { method: 'DELETE' })).status, 204);

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { validatePlatformEntries, validateShiftId, validateShiftUpdate } from '../src/validators/shiftValidator.js';
+import { validateMonth, validatePlatformEntries, validateShiftId, validateShiftUpdate } from '../src/validators/shiftValidator.js';
 
 const entry = { platform: 'glovo', earningsGross: '160.50', ordersCount: 10 };
 const valid = { startedAt: '2026-10-10T08:00:00.000Z', endedAt: '2026-10-10T10:30:00.000Z', platformEntries: [entry] };
@@ -30,6 +30,15 @@ test('shift update validates time order and preserves optional manual distance',
     { ...valid, startedAt: '2026-10-10T08:00:00' },
     ...[-1, 'abc', '', true, '1.234', '100000000'].map((distanceKm) => ({ ...valid, distanceKm }))]) {
     assert.throws(() => validateShiftUpdate(body), { status: 400 });
+  }
+});
+
+test('history month accepts only YYYY-MM and is optional', () => {
+  assert.equal(validateMonth(undefined), null);
+  assert.equal(validateMonth('2026-11'), '2026-11');
+  assert.equal(validateMonth('2026-01'), '2026-01');
+  for (const value of ['2026-13', '2026-00', '2026-1', '26-11', 'abc', '', ['2026-11']]) {
+    assert.throws(() => validateMonth(value), { status: 400 });
   }
 });
 

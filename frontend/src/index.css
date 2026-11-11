@@ -190,6 +190,10 @@
 .shift-amount { text-align: right; max-width: 155px; }
 .shift-amount > p:first-child { font-size: 1.05rem; font-weight: 750; letter-spacing: -.03em; }
 .shift-amount > p:last-child { margin-top: 3px; font-size: .75rem; }
+.shift-rate { margin-top: 2px; color: var(--color-accent); font-size: .875rem; font-weight: 650; font-variant-numeric: tabular-nums; }
+.shift-card-incomplete { border-color: #6b5125; }
+/* Przycisk nad linkiem całej karty (::after), żeby dało się go kliknąć osobno. */
+.shift-card-action { position: relative; z-index: 1; width: 100%; margin-top: 12px; }
 .shift-platforms { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
 .shift-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
 .shift-stats > div { display: flex; align-items: center; gap: 6px; min-width: 0; }
@@ -203,8 +207,15 @@
 .platform-uber_eats { background: var(--color-uber-eats); border-color: var(--color-uber-eats); color: var(--color-on-accent); }
 .platform-pyszne_pl { background: var(--color-pyszne-pl); border-color: var(--color-pyszne-pl); color: var(--color-on-accent); }
 .platform-wolt { background: var(--color-wolt); border-color: var(--color-wolt); color: var(--color-on-accent); }
-.history-month { margin: 20px 0 10px; text-transform: capitalize; font-size: .9rem; font-weight: 600; color: var(--color-text-soft); }
-li:first-child .history-month { margin-top: 0; }
+.month-navigation-label { text-align: center; font-size: 1.05rem; font-weight: 650; }
+.history-summary dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.history-summary dt { color: var(--color-text-muted); font-size: .75rem; }
+.history-summary dd { margin-top: 4px; font-size: 1rem; font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.history-summary-rate { color: var(--color-accent); }
+.history-summary p { margin-top: 10px; }
+.filter-chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+.filter-chip { flex-shrink: 0; min-height: 44px; padding: 8px 14px; border: 1px solid var(--color-line-strong); background: var(--color-surface); color: var(--color-text-soft); font-size: .875rem; white-space: nowrap; }
+.filter-chip[aria-pressed="true"] { border-color: var(--color-accent); background: #ffb80014; color: var(--color-accent); }
 .timer-panel { text-align: center; padding: 0 6px 8px; }
 .timer-status { display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--color-text-muted); font-size: .8rem; }
 .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #8298b5; flex-shrink: 0; }
@@ -236,9 +247,10 @@ li:first-child .history-month { margin-top: 0; }
 .secondary-metrics .metric-card dt { min-height: auto; }
 .secondary-metrics .metric-card dd { font-size: 1.1rem; }
 .analytics-section { display: grid; gap: 12px; min-width: 0; }
-.analytics-period-navigation { display: grid; grid-template-columns: 48px minmax(0, 1fr) 48px; gap: 8px; align-items: center; }
-.analytics-period-navigation button { display: flex; align-items: center; justify-content: center; min-height: 48px; border: 1px solid var(--color-line); background: var(--color-surface); color: inherit; }
-.analytics-period-navigation button:disabled { cursor: not-allowed; opacity: .45; }
+/* Ten sam przełącznik okresu w Analizie i w Historii. */
+.analytics-period-navigation, .month-navigation { display: grid; grid-template-columns: 48px minmax(0, 1fr) 48px; gap: 8px; align-items: center; }
+.analytics-period-navigation button, .month-navigation button { display: flex; align-items: center; justify-content: center; min-height: 48px; border: 1px solid var(--color-line); background: var(--color-surface); color: inherit; }
+.analytics-period-navigation button:disabled, .month-navigation button:disabled { cursor: not-allowed; opacity: .45; }
 .analytics-period-navigation select { padding: 8px; text-align: center; }
 .analytics-refresh { display: flex; gap: 6px; align-items: center; min-height: 44px; font-size: .8rem; color: var(--color-text-muted); }
 .analytics-section-title { font-size: 1.05rem; font-weight: 700; margin-top: 4px; }

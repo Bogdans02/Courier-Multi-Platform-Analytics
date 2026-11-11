@@ -29,7 +29,8 @@ async function request(path, token, { method = 'GET', body, signal } = {}) {
 }
 
 export const getActiveShift = (token, signal) => request('/active', token, { signal });
-export const getShifts = (token, signal) => request('', token, { signal });
+// month = 'RRRR-MM' pobiera tylko zmiany z tego miesiąca; bez niego — wszystkie.
+export const getShifts = (token, signal, month) => request(month ? `?month=${month}` : '', token, { signal });
 export const getShift = (token, id, signal) => request(`/${id}`, token, { signal });
 export const startShift = (token) => request('/start', token, { method: 'POST' });
 export const finishShift = (token, id) => request(`/${id}/finish`, token, { method: 'POST' });

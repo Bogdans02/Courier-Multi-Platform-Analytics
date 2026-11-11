@@ -35,10 +35,12 @@ export function createShiftRepository(pool) {
       );
       return rows[0];
     },
-    async list(userId) {
+    // month = 'RRRR-MM' zwraca tylko zmiany rozpoczęte w tym miesiącu (czas polski), tak jak w Analizie.
+    async list(userId, month = null) {
       const { rows } = await pool.query(
         `SELECT ${columns}, ${entryColumns}, ${estimatedNetColumn}, ${eventColumns} FROM shifts WHERE user_id = $1 AND status = 'completed'
-         ORDER BY started_at DESC, id DESC`, [userId],
+           AND ($2::text IS NULL OR TO_CHAR(started_at AT TIME ZONE 'Europe/Warsaw', 'YYYY-MM') = $2)
+         ORDER BY started_at DESC, id DESC`, [userId, month],
       );
       return rows;
     },

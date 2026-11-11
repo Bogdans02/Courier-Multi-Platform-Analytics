@@ -7,7 +7,7 @@ export function createShiftController(shifts) {
       res.json({ shift: await shifts.active(req.user.id) });
     },
     async list(req, res) {
-      res.json({ shifts: await shifts.list(req.user.id) });
+      res.json({ shifts: await shifts.list(req.user.id, req.query.month) });
     },
     async details(req, res) {
       res.json({ shift: await shifts.details(req.user.id, req.params.id) });
