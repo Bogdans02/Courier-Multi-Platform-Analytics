@@ -1,6 +1,7 @@
 import { Link } from 'react-router';
 import { expenseCategories } from '../utils/expenseValidation.js';
 import { formatMoney } from '../utils/shiftFormat.js';
+import { formatDate } from '../utils/dateFormat.js';
 
 const categoryLabel = (value) => expenseCategories.find((category) => category.value === value)?.label ?? value;
 
@@ -17,7 +18,7 @@ export default function ShiftCosts({ shiftId, expenses, status, message, metrics
           {expenses.map((expense) => <li key={expense.id}>
             <span className="min-w-0">
               {categoryLabel(expense.category)}
-              <small className="muted">{expense.expenseDate.split('-').reverse().join('.')}{expense.note ? ` · ${expense.note}` : ''}</small>
+              <small className="muted">{formatDate(expense.expenseDate)}{expense.note ? ` · ${expense.note}` : ''}</small>
             </span>
             <strong>{formatMoney(expense.amount)}</strong>
           </li>)}

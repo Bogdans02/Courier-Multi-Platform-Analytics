@@ -1,5 +1,6 @@
 import { Link } from 'react-router';
-import { formatCompactDuration, formatDateTime, formatDistance, formatMoney } from '../utils/shiftFormat.js';
+import { formatCompactDuration, formatDistance, formatMoney } from '../utils/shiftFormat.js';
+import { formatDateTime, formatDay, formatTimeRange } from '../utils/dateFormat.js';
 import PlatformBadge from './PlatformBadge.jsx';
 import { ChevronRight, Clock, Route } from 'lucide-react';
 import { shiftEarnings } from '../utils/earningsMode.js';
@@ -11,19 +12,13 @@ export default function ShiftCard({ shift, mode = 'auto', showRate = false, show
   const earnings = shiftEarnings(shift, mode);
   const rate = complete ? hourlyRate(earnings.amount, shift.durationSeconds) : null;
   const highlight = showCompleteAction && !complete;
-  const start = new Date(shift.startedAt);
-  const end = new Date(shift.endedAt);
-  const timeOptions = { hour: '2-digit', minute: '2-digit' };
-  const sameDay = start.toDateString() === end.toDateString();
   return <article className={`card shift-card${highlight ? ' shift-card-incomplete' : ''}`}>
     <div className="shift-card-heading">
       <div className="min-w-0">
         <h3><Link to={`/shifts/${shift.id}`} className="shift-card-link" aria-label={`Szczegóły zmiany z ${formatDateTime(shift.startedAt)}`}>
-          {start.toLocaleDateString('pl-PL', { weekday: 'short', day: 'numeric', month: 'long' })}
+          {formatDay(shift.startedAt)}
         </Link></h3>
-        <p className="shift-time">{start.toLocaleTimeString('pl-PL', timeOptions)} – {sameDay
-          ? end.toLocaleTimeString('pl-PL', timeOptions)
-          : end.toLocaleString('pl-PL', { day: 'numeric', month: 'short', ...timeOptions })}</p>
+        <p className="shift-time">{formatTimeRange(shift.startedAt, shift.endedAt)}</p>
       </div>
       <div className="shift-amount">
         <p className={complete ? 'earnings' : 'text-amber-300'}>{complete ? formatMoney(earnings.amount) : 'Do uzupełnienia'}</p>

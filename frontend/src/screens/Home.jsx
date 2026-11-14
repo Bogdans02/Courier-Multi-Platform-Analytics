@@ -4,6 +4,7 @@ import { getSummary, getDetails } from '../services/api/analytics.js';
 import { getShifts, getActiveShift } from '../services/api/shifts.js';
 import { formatCompactDuration, formatDistance, formatMoney } from '../utils/shiftFormat.js';
 import { todaySummary, todayEarningsFromTrend } from '../utils/todaySummary.js';
+import { formatDay } from '../utils/dateFormat.js';
 import useEarningsMode from '../hooks/useEarningsMode.js';
 import { weekChartData } from '../utils/weekChart.js';
 import AnalyticsChart from '../components/AnalyticsChart.jsx';
@@ -43,7 +44,7 @@ export default function Home({ session, onSessionExpired }) {
   ] : [];
   return <>
     <div className="page-heading home-heading">
-      <div><h1>Start</h1><p className="page-subtitle">{new Date().toLocaleDateString('pl-PL', { timeZone: 'Europe/Warsaw', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p></div>
+      <div><h1>Start</h1><p className="page-subtitle">{formatDay(new Date())}</p></div>
     </div>
     {settingsError && <p role="status" className="text-sm text-amber-300">Nie udało się odczytać ustawień netto. Wyświetlamy brutto. Otwórz ekran ponownie, aby spróbować jeszcze raz.</p>}
     {result.status === 'loading' && <p role="status">Wczytywanie podsumowania...</p>}

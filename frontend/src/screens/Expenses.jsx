@@ -5,6 +5,8 @@ import { getShifts, getActiveShift } from '../services/api/shifts.js';
 import { expenseCategories, validateExpenseFilters } from '../utils/expenseValidation.js';
 import { formatMoney } from '../utils/shiftFormat.js';
 import ExpenseForm from '../components/ExpenseForm.jsx';
+import BackLink from '../components/BackLink.jsx';
+import { formatDate } from '../utils/dateFormat.js';
 
 const emptyFilters = { from: '', to: '', category: '' };
 
@@ -69,6 +71,7 @@ export default function Expenses({ session, onSessionExpired, adding = false }) 
   }
 
   return <>
+    {adding ? <BackLink to="/expenses">Koszty</BackLink> : <BackLink to="/more">Więcej</BackLink>}
     <div className="page-heading"><h1>{adding ? 'Nowy koszt' : 'Koszty'}</h1></div>
     {message && <p role="status">{message}</p>}
     {error && <p role="alert" className="text-red-400">{error}</p>}
@@ -115,7 +118,7 @@ export default function Expenses({ session, onSessionExpired, adding = false }) 
       : <ul className="space-y-3">{current.expenses.map((expense) => <li key={expense.id}
         className="space-y-2 card">
         <p className="font-semibold">{expenseCategories.find(({ value }) => value === expense.category)?.label ?? expense.category}: {formatMoney(expense.amount)}</p>
-        <p>Data: {expense.expenseDate.split('-').reverse().join('.')}</p>
+        <p>Data: {formatDate(expense.expenseDate)}</p>
         {expense.note && <p className="whitespace-pre-wrap break-words">{expense.note}</p>}
         <p>{expense.shiftId ? <Link to={`/shifts/${expense.shiftId}`} className="text-link">Powiązana zmiana #{expense.shiftId}</Link> : 'Bez powiązania ze zmianą'}</p>
         {editing?.id === expense.id ? <ExpenseForm key={`${expense.id}/${reload}`}
@@ -135,6 +138,5 @@ export default function Expenses({ session, onSessionExpired, adding = false }) 
         </div>}
       </li>)}</ul>)}
     </>}
-    <p><Link to={adding ? '/expenses' : '/more'} className="text-link">{adding ? 'Wróć do kosztów' : 'Wróć do Więcej'}</Link></p>
   </>;
 }

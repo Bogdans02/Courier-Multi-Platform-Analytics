@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { deleteShift, finishShift, getActiveShift, getShift, getShifts, startShift, updateShift } from '../src/services/api/shifts.js';
 import { shiftFormPayload, validateShiftForm } from '../src/utils/shiftValidation.js';
-import { formatDistance, formatDuration, toLocalDateTime } from '../src/utils/shiftFormat.js';
+import { formatCompactDuration, formatDistance, toLocalDateTime } from '../src/utils/shiftFormat.js';
 import { platformTotals, validatePlatformEntries } from '../src/utils/platformEntries.js';
 
 const entry = { platform: 'glovo', earningsGross: '160.50', ordersCount: '10' };
@@ -21,7 +21,8 @@ test('shift form validates time order and distance and converts local dates to U
   const utc = '2026-10-10T08:00:30.123Z';
   assert.match(toLocalDateTime(utc), /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/);
   assert.equal(new Date(toLocalDateTime(utc)).toISOString(), '2026-10-10T08:00:00.000Z');
-  assert.equal(formatDuration(9001), '2 godz. 30 min 1 s');
+  // Durations are shown without seconds.
+  assert.equal(formatCompactDuration(9001), '2 godz. 30 min');
   assert.equal(formatDistance(null), 'Nie podano');
   assert.equal(formatDistance('0.00'), '0 km');
 });

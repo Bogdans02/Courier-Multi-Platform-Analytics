@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { expenseCategories, expensePayload, todayDate } from '../utils/expenseValidation.js';
-import { formatDateTime } from '../utils/shiftFormat.js';
+import { formatDateTime, formatDay, formatTimeRange } from '../utils/dateFormat.js';
 
 export default function ExpenseForm({ expense, shifts, initialShiftId, onSubmit, onCancel }) {
   const [values, setValues] = useState({ category: expense?.category ?? '', amount: expense?.amount ?? '',
@@ -39,7 +39,8 @@ export default function ExpenseForm({ expense, shifts, initialShiftId, onSubmit,
       <select id="expense-shift" name="shiftId" value={values.shiftId} onChange={change} className="form-input">
         <option value="">Bez powiązania ze zmianą</option>
         {shifts.map((shift) => <option value={shift.id} key={shift.id}>
-          {formatDateTime(shift.startedAt)}{shift.status === 'active' ? ' — trwa' : ''} (#{shift.id})
+          {shift.status === 'active' ? `${formatDateTime(shift.startedAt)} — trwa`
+            : `${formatDay(shift.startedAt)}, ${formatTimeRange(shift.startedAt, shift.endedAt)}`}
         </option>)}
       </select>
       <label htmlFor="expense-note" className="block">Notatka (opcjonalnie)</label>

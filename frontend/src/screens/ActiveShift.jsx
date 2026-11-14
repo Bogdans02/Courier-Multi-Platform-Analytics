@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { finishShift, getActiveShift, startShift } from '../services/api/shifts.js';
-import { formatDateTime, formatDuration } from '../utils/shiftFormat.js';
+import { formatCompactDuration } from '../utils/shiftFormat.js';
+import { formatDateTime } from '../utils/dateFormat.js';
 import PlatformBadge from '../components/PlatformBadge.jsx';
 import { Package, Play, Square } from 'lucide-react';
 import FloatingTrackingControl from '../components/FloatingTrackingControl.jsx';
@@ -90,7 +91,7 @@ export default function ActiveShift({ session, onSessionExpired }) {
             <h2 className="font-semibold">Bieżąca zmiana</h2>
             <dl className="grid grid-cols-2 gap-4 text-sm">
               <div><dt className="muted text-xs">Status</dt><dd className="mt-1 text-emerald-300">Aktywna</dd></div>
-              <div><dt className="muted text-xs">Czas pracy</dt><dd className="mt-1">{formatDuration((now - new Date(shift.startedAt).getTime()) / 1000)}</dd></div>
+              <div><dt className="muted text-xs">Czas pracy</dt><dd className="mt-1">{formatCompactDuration((now - new Date(shift.startedAt).getTime()) / 1000)}</dd></div>
             </dl>
             <div className="shift-platform-note"><Package size={22} strokeWidth={1.8} aria-hidden="true" /><div><h3 className="mb-2 text-sm font-semibold">Platformy w tej zmianie</h3>
               {shift.platformEntries.length ? <div className="flex flex-wrap gap-2">{shift.platformEntries.map(({ platform }) => <PlatformBadge key={platform} platform={platform} />)}</div>

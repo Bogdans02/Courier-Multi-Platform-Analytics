@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router';
-import { ChevronLeft } from 'lucide-react';
+import BackLink from '../components/BackLink.jsx';
 import ShiftForm from '../components/ShiftForm.jsx';
 import ShiftPlatformSummary from '../components/ShiftPlatformSummary.jsx';
 import ShiftCosts from '../components/ShiftCosts.jsx';
 import { getShift, updateShift } from '../services/api/shifts.js';
 import { getExpenses } from '../services/api/expenses.js';
-import { formatCompactDuration, formatMoney, formatShiftDay, formatTimeRange } from '../utils/shiftFormat.js';
+import { formatCompactDuration, formatMoney } from '../utils/shiftFormat.js';
+import { formatDay, formatTimeRange } from '../utils/dateFormat.js';
 import { monthOf } from '../utils/historySummary.js';
 import { shiftMetrics } from '../utils/shiftMetrics.js';
 import { deleteShiftWithDraft, floatingTracking } from '../services/floatingTracking.js';
@@ -90,23 +91,21 @@ export default function ShiftDetails({ session, onSessionExpired }) {
   const metrics = complete ? shiftMetrics(shift, costs.expenses) : null;
   // W podglądzie tytułem jest dzień zmiany; przy edycji dzień przechodzi do podtytułu.
   const editTitle = summaryMode ? 'Podsumowanie zmiany' : 'Edycja zmiany';
-  const subtitle = shift && [...(editing ? [formatShiftDay(shift.startedAt)] : []), ...(shift.status === 'active'
+  const subtitle = shift && [...(editing ? [formatDay(shift.startedAt)] : []), ...(shift.status === 'active'
     ? ['zmiana trwa']
     : [formatTimeRange(shift.startedAt, shift.endedAt), formatCompactDuration(shift.durationSeconds),
       shift.distanceKm === null ? 'bez dystansu' : `${Number(shift.distanceKm).toLocaleString('pl-PL')} km`])];
 
   return (
     <>
-      <Link to={shift ? historyFor(shift.startedAt) : '/history'} className="back-link">
-        <ChevronLeft size={20} aria-hidden="true" />Historia
-      </Link>
+      <BackLink to={shift ? historyFor(shift.startedAt) : '/history'}>Historia</BackLink>
       {loading && <p role="status">Wczytywanie zmiany...</p>}
       {error && <div><p role="alert">{error}</p>
         {!shift && <button type="button" onClick={() => { setLoading(true); setReload((value) => value + 1); }} className="button-secondary mt-2">Spróbuj ponownie</button>}
       </div>}
       {!loading && shift && <>
         <div className="page-heading">
-          <h1>{editing ? editTitle : formatShiftDay(shift.startedAt)}</h1>
+          <h1>{editing ? editTitle : formatDay(shift.startedAt)}</h1>
           <p className="page-subtitle">{subtitle.join(' · ')}</p>
         </div>
 
@@ -132,7 +131,7 @@ export default function ShiftDetails({ session, onSessionExpired }) {
               <p className="shift-result-amount earnings">{formatMoney(metrics.amount)}</p>
               <p className="muted text-sm">{shift.totalOrders} zam.</p>
               <dl className="metric-row">
-                <div><dt>na godzinę</dt><dd className="accent-value">{metrics.perHour === null ? '—' : formatMoney(metrics.perHour)}</dd></div>
+                <div><dt>na godzinę</dt><dd>{metrics.perHour === null ? '—' : formatMoney(metrics.perHour)}</dd></div>
                 <div><dt>na zamówienie</dt><dd>{metrics.perOrder === null ? '—' : formatMoney(metrics.perOrder)}</dd></div>
                 <div><dt>na km</dt><dd>{metrics.perKm === null ? '—' : formatMoney(metrics.perKm)}</dd></div>
               </dl>

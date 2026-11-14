@@ -1,10 +1,8 @@
+import { formatMonth, formatWeekRange } from './dateFormat.js';
+
 const warsawDate = new Intl.DateTimeFormat('en-CA', {
   timeZone: 'Europe/Warsaw', year: 'numeric', month: '2-digit', day: '2-digit',
 });
-const weekLabel = new Intl.DateTimeFormat('pl-PL', {
-  timeZone: 'UTC', day: 'numeric', month: 'short', year: 'numeric',
-});
-const monthLabel = new Intl.DateTimeFormat('pl-PL', { timeZone: 'UTC', month: 'long', year: 'numeric' });
 
 export function initialAnalyticsCalendar(now = new Date()) {
   return { kind: 'week', anchors: { week: warsawDate.format(now), month: null } };
@@ -32,14 +30,8 @@ export function adjacentCalendarAnchor(kind, anchor, direction) {
 }
 
 export function calendarPeriodLabel(kind, anchor) {
-  const first = new Date(`${calendarAnchor(kind, anchor)}T00:00:00Z`);
-  if (kind === 'month') {
-    const label = monthLabel.format(first);
-    return label.charAt(0).toLocaleUpperCase('pl-PL') + label.slice(1);
-  }
-  const last = new Date(first);
-  last.setUTCDate(last.getUTCDate() + 6);
-  return weekLabel.formatRange(first, last);
+  const first = calendarAnchor(kind, anchor);
+  return kind === 'month' ? formatMonth(first) : formatWeekRange(first);
 }
 
 export function calendarPeriodOptions(kind, range) {

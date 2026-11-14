@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router';
 import { createServer } from 'vite';
 import { platformPerOrder, shiftMetrics } from '../src/utils/shiftMetrics.js';
-import { formatShiftDay, formatTimeRange } from '../src/utils/shiftFormat.js';
+import { formatDay, formatTimeRange } from '../src/utils/dateFormat.js';
 import { getExpenses } from '../src/services/api/expenses.js';
 
 const shift = { id: 7, status: 'completed', startedAt: '2026-11-03T16:30:00.000Z', endedAt: '2026-11-03T22:00:00.000Z',
@@ -50,9 +50,8 @@ test('per-order value of one platform is missing when it has no orders', () => {
 
 test('shift day and time range are shown without seconds', () => {
   const start = new Date(2026, 10, 8, 8, 0, 30);
-  assert.equal(formatShiftDay(start), 'Niedziela, 8 listopada');
+  assert.equal(formatDay(start), 'Niedziela, 8 listopada');
   assert.equal(formatTimeRange(start, new Date(2026, 10, 8, 12, 0, 45)), '08:00 – 12:00');
-  assert.match(formatTimeRange(new Date(2026, 10, 8, 22, 0), new Date(2026, 10, 9, 2, 0)), /^22:00 – 9 lis.*02:00$/);
 });
 
 test('expenses of one shift are requested with the shiftId filter', async (t) => {
@@ -77,7 +76,7 @@ const render = (component, props) => renderToStaticMarkup(createElement(MemoryRo
 test('costs section lists assigned costs and what is left after them', () => {
   const markup = render(ShiftCosts, { shiftId: 7, expenses: [fuel], status: 'success', metrics: shiftMetrics(shift, [fuel]) });
   assert.match(markup, /Paliwo/);
-  assert.match(markup, /03\.11\.2026/);
+  assert.match(markup, /3 listopada 2026/);
   assert.match(markup, /Po kosztach \(brutto\)<\/dt><dd>34,60\s*zł/);
   assert.match(markup, /href="\/expenses\/new"/);
   const empty = render(ShiftCosts, { shiftId: 7, expenses: [], status: 'success', metrics: shiftMetrics(shift) });

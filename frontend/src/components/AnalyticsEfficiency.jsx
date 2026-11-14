@@ -19,7 +19,7 @@ function BestWeekday({ best }) {
   const available = best.status === 'available';
   return <section className="card analytics-best-weekday" aria-labelledby="best-weekday-title">
     <div className="flex items-center gap-2">
-      <Trophy size={18} className="text-amber-400" aria-hidden="true" />
+      <Trophy size={18} className="muted" aria-hidden="true" />
       <h3 id="best-weekday-title" className="analytics-chart-title">Najlepszy dzień</h3>
       <details className="analytics-sample-info">
         <summary aria-label="Informacje o najlepszym dniu"><Info size={18} aria-hidden="true" /></summary>

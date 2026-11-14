@@ -68,7 +68,7 @@ export default function ShiftHistory({ session, onSessionExpired }) {
           <dl>
             <div><dt>Zarobek</dt><dd>{formatMoney(summary.earnings)}</dd></div>
             <div><dt>Czas pracy</dt><dd>{summary.hours.toLocaleString('pl-PL', { maximumFractionDigits: 1 })} h</dd></div>
-            <div><dt>Na godzinę</dt><dd className="history-summary-rate">{summary.rate === null ? '—' : `${formatMoney(summary.rate)}/h`}</dd></div>
+            <div><dt>Na godzinę</dt><dd>{summary.rate === null ? '—' : `${formatMoney(summary.rate)}/h`}</dd></div>
           </dl>
           <p className="muted text-xs">{shiftCountLabel(summary.completeCount)} · {summary.label}</p>
         </section>

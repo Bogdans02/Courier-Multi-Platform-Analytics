@@ -12,12 +12,13 @@ test('weekly chart keeps all seven Warsaw dates, including missing days and Sund
   assert.deepEqual(result.labels, [ ['19.10', 'pon.'], ['20.10', 'wt.'], ['21.10', 'śr.'],
     ['22.10', 'czw.'], ['23.10', 'pt.'], ['24.10', 'sob.'], ['25.10', 'niedz.'] ]);
   assert.deepEqual(result.values, [123.45, null, 0, null, null, null, 15.5]);
-  assert.equal(result.range, '19 paź. - 25 paź.');
+  // Same week label as in Analiza.
+  assert.equal(result.range, '19–25 paź 2026');
 });
 
 test('empty weekly chart keeps dates across a year boundary without inventing earnings', () => {
   const result = weekChartData([], '2025-12-28T23:00:00Z');
-  assert.equal(result.range, '29 gru. - 4 sty.');
+  assert.equal(result.range, '29 gru 2025–4 sty 2026');
   assert.equal(result.labels[6][1], 'niedz.');
   assert.deepEqual(result.values, Array(7).fill(null));
 });

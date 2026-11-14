@@ -13,7 +13,7 @@ export default function IncompleteShiftsNotice({ count, description = 'Nie są u
       </summary>
       <div className="notice-description">
         <p className="muted text-xs">{description}</p>
-        <Link to="/history" className="text-link inline-flex min-h-8 items-center">Uzupełnij w historii →</Link>
+        <Link to="/history" className="text-link">Uzupełnij w historii →</Link>
       </div>
     </details>
   </div>;

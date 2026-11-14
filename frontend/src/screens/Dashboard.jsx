@@ -79,7 +79,7 @@ export default function Dashboard({ session, onSessionExpired }) {
         </summary>
         <div className="notice-description">
           <p className="muted text-xs">Szacunek na podstawie aktualnego profilu. Nie stanowi rozliczenia podatkowego.</p>
-          <Link to="/settings" className="text-link inline-flex min-h-8 items-center">Ustawienia szacowanego netto →</Link>
+          <Link to="/settings" className="text-link">Ustawienia szacowanego netto →</Link>
         </div>
       </details>}
       {statistics.status === 'success' && <IncompleteShiftsNotice count={statistics.summary.incompleteShiftCount} />}

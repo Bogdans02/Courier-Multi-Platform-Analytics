@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { getSettings, saveSettings } from '../services/api/settings.js';
+import BackLink from '../components/BackLink.jsx';
 import { settingsPayload, estimatedRate, formatRate } from '../utils/netSettings.js';
 
 export default function Settings({ session, onSessionExpired }) {
@@ -51,6 +52,7 @@ export default function Settings({ session, onSessionExpired }) {
   const profile = profiles.find(({ value }) => value === netProfile);
   const rate = estimatedRate(profiles, netProfile, ppkOptOut, percent);
   return <>
+    <BackLink to="/more">Więcej</BackLink>
     <div className="page-heading"><h1>Ustawienia</h1></div>
     <p className="muted text-sm">Szacowane netto to przybliżenie, nie rozliczenie podatkowe. Stawki profili są orientacyjne.</p>
     {status === 'loading' && <p role="status">Wczytywanie ustawień...</p>}
@@ -67,7 +69,7 @@ export default function Settings({ session, onSessionExpired }) {
           <option value="">Wybierz profil</option>
           {profiles.map(({ value, label }) => <option value={value} key={value}>{label}</option>)}
         </select>
-        {profile?.ppkDeductionRate && <label className="flex items-center gap-3 py-2">
+        {profile?.ppkDeductionRate && <label className="flex min-h-11 items-center gap-3 py-2">
           <input type="checkbox" checked={ppkOptOut} onChange={(event) => setPpkOptOut(event.target.checked)} />
           Rezygnuję z PPK
         </label>}
@@ -86,6 +88,5 @@ export default function Settings({ session, onSessionExpired }) {
     </form>}
     {message && <p role="status">{message}</p>}
     <p><Link to="/dashboard" className="text-link">Przejdź do statystyk</Link></p>
-    <p><Link to="/more" className="text-link">Wróć do Więcej</Link></p>
   </>;
 }

@@ -49,8 +49,10 @@ export default function App() {
     <div className={`app-shell ${session ? '' : 'auth-shell'}`}>
       <a href="#main-content" className="sr-only focus:not-sr-only">Przejdź do treści</a>
       {!session && <header className="app-header">
-        <Link to={session ? '/' : '/login'} className="brand-mark" aria-label="CourStat — start"><ChartNoAxesColumnIncreasing size={22} strokeWidth={1.8} aria-hidden="true" /></Link>
-        <p>CourStat</p>
+        {/* Logo i nazwa to jeden link, żeby obszar dotyku miał co najmniej 44 px. */}
+        <Link to={session ? '/' : '/login'} className="brand-link">
+          <span className="brand-mark"><ChartNoAxesColumnIncreasing size={22} strokeWidth={1.8} aria-hidden="true" /></span>CourStat
+        </Link>
       </header>}
       <main id="main-content" className="page-content">
         <Routes>
