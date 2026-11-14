@@ -10,7 +10,7 @@ const metrics = [
 export default function AnalyticsPlatforms({ rows, mode, metricKey, onMetricChange }) {
   const metric = metrics.find(item => item.key === metricKey);
   return <section className="analytics-section" aria-labelledby="analytics-platforms-title">
-    <h2 id="analytics-platforms-title" className="analytics-section-title">Platformy</h2>
+    <h2 id="analytics-platforms-title" className="analytics-section-title">Gdzie się opłaca</h2>
     <div className="segmented" role="group" aria-label="Wyniki platform">
       {metrics.map(item => <button type="button" key={item.key} aria-pressed={item.key === metricKey}
         onClick={() => onMetricChange(item.key)}>{item.label}</button>)}
@@ -28,7 +28,10 @@ export default function AnalyticsPlatforms({ rows, mode, metricKey, onMetricChan
           return <li key={platform} data-platform={platform}>
             <div className="platform-share-label"><PlatformBadge platform={platform} />
               <span className="platform-share-value">{value == null ? 'Brak danych'
-                : metricKey === 'earnings' ? formatMoney(value) : Number(value).toLocaleString('pl-PL')}</span>
+                : metricKey === 'earnings' ? formatMoney(value) : Number(value).toLocaleString('pl-PL')}
+                {/* Zł/zamówienie tylko przy zarobkach — to miara "gdzie się bardziej opłaca". */}
+                {metricKey === 'earnings' && row?.earningsPerOrder != null
+                  && <small className="platform-share-per-order">{formatMoney(row.earningsPerOrder)}/zam.</small>}</span>
             </div>
             <div className="platform-share-meter">
               {share != null && <div className="platform-share-track" aria-hidden="true">

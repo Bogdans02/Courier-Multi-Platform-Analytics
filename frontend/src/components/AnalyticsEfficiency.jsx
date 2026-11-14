@@ -1,54 +1,34 @@
-import { Info, Trophy } from 'lucide-react';
+import { Trophy } from 'lucide-react';
 import AnalyticsChart from './AnalyticsChart.jsx';
-import { analyticsChartData, analyticsLabel, efficiencyMetrics, efficiencyTrend } from '../utils/analyticsFormat.js';
+import { analyticsChartData, analyticsLabel } from '../utils/analyticsFormat.js';
 import { formatMoney } from '../utils/shiftFormat.js';
 
-function EfficiencyChart({ title, kind, rows, metric, mode }) {
-  const data = analyticsChartData(kind, rows, metric.key);
-  const financialMode = mode === 'estimated_net' ? 'szacowane netto' : 'brutto';
-  const label = `${title} — ${metric.label}, ${metric.unit}${metric.key === 'ordersPerHour' ? '' : `, ${financialMode}`}`;
-  return <section className="card analytics-chart-card">
-    <h3 className="analytics-chart-title">{title}</h3>
-    {data.values.some(value => value !== null)
-      ? <AnalyticsChart title={label} unit={metric.unit} type={kind === 'weekdays' ? 'bar' : 'line'} {...data} />
-      : <p className="muted py-4 text-sm">Brak danych dla wybranej metryki w tym okresie.</p>}
-  </section>;
-}
+// Dni tygodnia zawsze według zarobku na godzinę — to odpowiada na pytanie "kiedy wychodzić".
+const rateMetric = { key: 'earningsPerHour', unit: 'zł/h' };
 
 function BestWeekday({ best }) {
   const available = best.status === 'available';
-  return <section className="card analytics-best-weekday" aria-labelledby="best-weekday-title">
+  return <div className="analytics-best-weekday">
     <div className="flex items-center gap-2">
       <Trophy size={18} className="muted" aria-hidden="true" />
-      <h3 id="best-weekday-title" className="analytics-chart-title">Najlepszy dzień</h3>
-      <details className="analytics-sample-info">
-        <summary aria-label="Informacje o najlepszym dniu"><Info size={18} aria-hidden="true" /></summary>
-        <div className="muted text-xs space-y-2">
-          <p>Według zarobku na godzinę dla wszystkich platform i dnia rozpoczęcia zmiany w Polsce. Wynik opisuje zapisaną próbę, także gdy obejmuje jedną zmianę.</p>
-          {best.days.map(day => <p key={day.key}>{analyticsLabel('weekdays', day)}: liczba zmian {day.shiftCount}, czas pracy {Number(day.totalHours).toLocaleString('pl-PL', { maximumFractionDigits: 2 })} godz.</p>)}
-        </div>
-      </details>
+      <h3 className="analytics-chart-title">Najlepszy dzień</h3>
     </div>
     {available ? <div className="analytics-best-result">
       <p>{best.days.map(day => analyticsLabel('weekdays', day)).join(', ')}</p>
       <p className="analytics-best-rate">{formatMoney(best.earningsPerHour)}/h</p>
     </div> : <p className="muted text-sm">{best.status === 'all_zero' ? 'Brak wyróżniającego się dnia' : 'Brak danych'}</p>}
-  </section>;
+  </div>;
 }
 
-export default function AnalyticsEfficiency({ details, selection, availableRange, metricKey, onMetricChange }) {
-  const metric = efficiencyMetrics.find(item => item.key === metricKey);
-  const trend = efficiencyTrend(details, selection, availableRange);
-  return <>
-    <div className="segmented analytics-efficiency-metrics" role="group" aria-label="Metryka efektywności pracy">
-      {efficiencyMetrics.map(item => <button type="button" key={item.key} aria-pressed={item.key === metricKey}
-        onClick={() => onMetricChange(item.key)}>{item.label}</button>)}
-    </div>
-    <p className="muted text-xs">Wszystkie platformy · {details.mode === 'estimated_net' ? 'Szacowane netto' : 'Brutto'}. Według dnia rozpoczęcia zmiany w Polsce.</p>
-    <EfficiencyChart title={selection.kind === 'all' ? 'Trend miesięczny' : 'Trend dzienny'} kind={trend.kind}
-      rows={trend.rows} metric={metric} mode={details.mode} />
-    {selection.kind !== 'week' && <EfficiencyChart title="Wyniki według dnia tygodnia" kind="weekdays"
-      rows={details.weekdays} metric={metric} mode={details.mode} />}
+export default function AnalyticsEfficiency({ details }) {
+  const data = analyticsChartData('weekdays', details.weekdays, rateMetric.key);
+  const hasData = data.values.some(value => value !== null);
+  return <section className="card analytics-chart-card">
+    <h3 className="analytics-chart-title">Zarobek na godzinę według dnia tygodnia</h3>
+    <p className="muted text-xs">{details.mode === 'estimated_net' ? 'Szacowane netto' : 'Brutto'} · według dnia rozpoczęcia zmiany.</p>
+    {hasData
+      ? <AnalyticsChart title={`Zarobek na godzinę według dnia tygodnia, ${rateMetric.unit}`} unit={rateMetric.unit} type="bar" {...data} />
+      : <p className="muted py-4 text-sm">Brak danych dla tego okresu.</p>}
     <BestWeekday best={details.bestWeekdays} />
-  </>;
+  </section>;
 }

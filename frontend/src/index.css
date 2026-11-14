@@ -282,18 +282,21 @@
 .analytics-period-navigation button, .month-navigation button { display: flex; align-items: center; justify-content: center; min-height: 48px; border: 1px solid var(--color-line); background: var(--color-surface); color: inherit; }
 .analytics-period-navigation button:disabled, .month-navigation button:disabled { cursor: not-allowed; opacity: .45; }
 .analytics-period-navigation select { padding: 8px; text-align: center; }
-.analytics-refresh { display: flex; gap: 6px; align-items: center; min-height: 44px; font-size: .8rem; color: var(--color-text-muted); }
 .analytics-section-title { font-size: 1.05rem; font-weight: 700; margin-top: 4px; }
 .analytics-chart-title { font-size: .9rem; font-weight: 650; line-height: 1.4; }
-.analytics-kpis { grid-auto-rows: 1fr; }
-.analytics-kpis .metric-card { display: flex; flex-direction: column; justify-content: space-between; min-height: 126px; }
-.analytics-kpis .analytics-kpi-primary { border-color: var(--color-line-strong); }
-.analytics-kpis .metric-icon { color: var(--color-text-soft); background: #ffffff0d; }
-.analytics-kpi-value { display: block; }
-.analytics-kpis .metric-comparison { display: flex; align-items: center; gap: 3px; min-height: 18px; margin-top: 8px; font-size: .75rem; font-weight: 500; line-height: 1.35; letter-spacing: normal; color: var(--color-text-muted); }
+/* Karta-bohater "Ile zarabiam": stawka na godzinę jest największa, reszta mniejsza. */
+.earnings-hero-rate { margin: 4px 0 2px; font-size: clamp(2.2rem, 10vw, 3rem); font-weight: 750; letter-spacing: -.045em; line-height: 1.1; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.earnings-hero-rate span { font-size: .5em; font-weight: 650; color: var(--color-text-soft); }
+.earnings-hero-change { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-bottom: 14px; font-size: .8rem; }
+.earnings-hero-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding-top: 14px; border-top: 1px solid var(--color-line); }
+.earnings-hero-grid dt { color: var(--color-text-muted); font-size: .73rem; }
+.earnings-hero-grid dd { margin-top: 4px; font-size: 1.05rem; font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.earnings-hero-grid .metric-comparison { margin-top: 4px; }
+.earnings-hero-context { margin-top: 12px; }
+.metric-comparison { display: inline-flex; align-items: center; gap: 3px; font-size: .75rem; font-weight: 500; line-height: 1.35; letter-spacing: normal; color: var(--color-text-muted); }
 .metric-comparison svg { flex-shrink: 0; }
-.analytics-kpis .metric-comparison[data-tone="up"] { color: #61e3b5; }
-.analytics-kpis .metric-comparison[data-tone="down"] { color: #fca5a5; }
+.metric-comparison[data-tone="up"] { color: #61e3b5; }
+.metric-comparison[data-tone="down"] { color: #fca5a5; }
 .analytics-chart-card { display: grid; gap: 8px; padding: 16px; }
 .analytics-chart { height: 210px; min-width: 0; }
 .analytics-chart canvas { max-width: 100%; }
@@ -330,6 +333,7 @@
 .platform-shares { display: grid; gap: 18px; }
 .platform-share-label { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 10px; font-size: .8rem; }
 .platform-share-value { min-width: 0; text-align: right; color: var(--color-text); font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.platform-share-per-order { display: block; margin-top: 2px; color: var(--color-text-muted); font-size: .75rem; font-weight: 400; }
 .platform-share-meter { display: flex; gap: 10px; align-items: center; justify-content: flex-end; margin-top: 8px; }
 .platform-share-percentage { color: var(--color-text-muted); font-size: .75rem; font-variant-numeric: tabular-nums; text-align: right; }
 .platform-share-track { flex: 1; min-width: 0; height: 6px; border-radius: var(--radius-ui); background: var(--color-line); overflow: hidden; }

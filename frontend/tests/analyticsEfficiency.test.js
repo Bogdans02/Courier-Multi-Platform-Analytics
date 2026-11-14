@@ -28,9 +28,8 @@ function fixture() {
     bestWeekdays: { status: 'available', earningsPerHour: '33.34',
       days: [{ key: '1', shiftCount: 1, totalHours: 3, earningsPerHour: '33.34' }] } };
 }
-const render = (details = fixture(), chosen = selection, metricKey = 'totalEarnings') =>
-  renderToStaticMarkup(createElement(Efficiency, { details, selection: chosen, availableRange: range,
-    metricKey, onMetricChange() {} }));
+// The redesigned Efficiency shows only the weekday zł/h chart and the best day.
+const render = (details = fixture()) => renderToStaticMarkup(createElement(Efficiency, { details }));
 
 test('efficiency reads exact backend aggregates for each metric and distinguishes NULL samples from real zero', () => {
   const rows = [{ ...group, key: '2026-11-02' },
@@ -64,63 +63,49 @@ test('calendar labels are daily for week/month and monthly for all, including em
   assert.equal(warsawDate.rows[0].key, '2026-11');
 });
 
-test('React shows one weekly trend, weekday analysis for month/all, and changes both chart units with the shared metric control', () => {
-  for (const [kind, anchor, expectedTrend, charts] of [['week', '2026-11-02', 'Trend dzienny', 1],
-    ['month', '2026-11-01', 'Trend dzienny', 2], ['all', null, 'Trend miesięczny', 2]]) {
-    for (const [metric, label, unit] of [['totalEarnings', 'Zarobek', 'zł'], ['earningsPerHour', 'Zł/h', 'zł/h'],
-      ['ordersPerHour', 'Dostawy/h', 'dostawy/h']]) {
-      const markup = render(fixture(), { ...selection, kind, anchor }, metric);
-      assert.equal((markup.match(/<canvas /g) ?? []).length, charts);
-      assert.match(markup, new RegExp(`${expectedTrend} — ${label}, ${unit}`));
-      assert.match(markup, new RegExp(`aria-pressed="true">${label}</button>`));
-      if (kind === 'week') assert.doesNotMatch(markup, /Wyniki według dnia tygodnia/);
-      else assert.match(markup, new RegExp(`Wyniki według dnia tygodnia — ${label}, ${unit}`));
-      assert.match(markup, /Wszystkie platformy/);
-    }
-  }
-  let picked;
-  const element = Efficiency({ details: fixture(), selection, availableRange: range,
-    metricKey: 'totalEarnings', onMetricChange: key => { picked = key; } });
-  element.props.children[0].props.children[2].props.onClick();
-  assert.equal(picked, 'ordersPerHour');
+test('the weekday section shows a single zł/h chart built from the weekday aggregates', () => {
+  const markup = render();
+  // One chart only — the daily trend no longer duplicates here.
+  assert.equal((markup.match(/<canvas /g) ?? []).length, 1);
+  assert.match(markup, /Zarobek na godzinę według dnia tygodnia/);
+  assert.match(markup, /według dnia tygodnia, zł\/h/);
+  assert.doesNotMatch(markup, /Trend dzienny|Trend miesięczny|aria-pressed/);
 });
 
-test('best weekday displays the backend winners and ties with sample information, without ranking totals or imposing a minimum', () => {
+test('best weekday displays the backend winners and ties, without ranking totals or imposing a minimum', () => {
   const details = fixture();
   details.bestWeekdays = { status: 'available', earningsPerHour: '42.60', days: [
     { key: '2', shiftCount: 1, totalHours: 0.5 }, { key: '5', shiftCount: 2, totalHours: 3.25 },
   ] };
   const markup = render(details);
+  assert.match(markup, /Najlepszy dzień/);
   assert.match(markup, /Wtorek, Piątek/);
   assert.match(markup, /42,60.*?zł\/h/);
-  assert.match(markup, /Wtorek: liczba zmian 1, czas pracy 0,5 godz/);
-  assert.match(markup, /Piątek: liczba zmian 2, czas pracy 3,25 godz/);
-  assert.match(markup, /aria-label="Informacje o najlepszym dniu"/);
   assert.match(render(), /Poniedziałek/);
 });
 
-test('empty metrics, actual zero rates, all-zero best days and unavailable best days remain distinct', () => {
+test('empty weekday rates, all-zero and unavailable best days remain distinct', () => {
   const details = fixture();
-  details.trend = [{ ...details.trend[0], earningsPerHour: null }];
+  details.weekdays = details.weekdays.map(day => ({ ...day, earningsPerHour: null }));
   details.bestWeekdays = { status: 'no_data', earningsPerHour: null, days: [] };
-  const empty = render(details, selection, 'earningsPerHour');
-  assert.match(empty, /Brak danych dla wybranej metryki/);
+  const empty = render(details);
+  assert.match(empty, /Brak danych dla tego okresu/);
   assert.doesNotMatch(empty, /<canvas /);
-  details.trend[0].earningsPerHour = '0.00';
-  details.bestWeekdays = { status: 'all_zero', earningsPerHour: '0.00', days: [] };
-  const zero = render(details, selection, 'earningsPerHour');
-  assert.match(zero, /<canvas /);
-  assert.match(zero, /Brak wyróżniającego się dnia/);
-  assert.doesNotMatch(zero, /analytics-best-result/);
+  const zero = fixture();
+  zero.weekdays = zero.weekdays.map(day => ({ ...day, earningsPerHour: '0.00' }));
+  zero.bestWeekdays = { status: 'all_zero', earningsPerHour: '0.00', days: [] };
+  const zeroMarkup = render(zero);
+  assert.match(zeroMarkup, /<canvas /);
+  assert.match(zeroMarkup, /Brak wyróżniającego się dnia/);
+  assert.doesNotMatch(zeroMarkup, /analytics-best-result/);
 });
 
-test('financial mode uses server rates while orders/h remains independent, and details platform queries share the global selection/asOf', async (t) => {
+test('net mode labels the weekday chart as szacowane netto, and details platform queries share the global selection/asOf', async (t) => {
   const details = fixture();
   details.mode = 'estimated_net';
   details.bestWeekdays.earningsPerHour = '28.00';
-  assert.match(render(details, selection, 'earningsPerHour'), /zł\/h, szacowane netto/);
+  assert.match(render(details), /Szacowane netto/);
   assert.match(render(details), /28,00.*?zł\/h/);
-  assert.match(render(details, selection, 'ordersPerHour'), /Dostawy\/h, dostawy\/h"/);
   const urls = [];
   t.mock.method(globalThis, 'fetch', async url => { urls.push(new URL(url)); return new Response('{"details":{}}'); });
   const query = { calendar: selection.kind, anchor: selection.anchor, asOf: selection.asOf };

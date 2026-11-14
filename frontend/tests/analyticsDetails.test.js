@@ -34,15 +34,14 @@ test('one initially collapsed details section contains five additional metrics o
   assert.match(markup, /^<details class="analytics-disclosure" id="detailed-analytics">/);
   assert.equal((markup.match(/<details /g) ?? []).length, 1);
   assert.doesNotMatch(markup, /<details[^>]*\sopen|Pozostałe analizy|additional-analytics/);
-  for (const label of ['Średni zarobek na zmianę', 'Średni zarobek na zamówienie', 'Liczba zmian', 'Łączny dystans', 'Łączne koszty w okresie']) {
+  for (const label of ['Średni zarobek na zmianę', 'Dostawy na godzinę', 'Liczba zmian', 'Łączny dystans', 'Łączne koszty w okresie']) {
     assert.equal(markup.split(label).length - 1, 1);
   }
   assert.match(markup, /200,00/);
-  assert.match(markup, /20,00/);
   assert.match(markup, /50 km/);
   assert.match(markup, /15,00/);
   assert.match(markup, /dodatkowe wskaźniki pozostają globalne/);
-  assert.match(markup, /Dystans: 1 z 2 zmian/);
+  assert.match(markup, /zmian z podanym dystansem \(1 z 2\)/);
   assert.doesNotMatch(markup, /analytics-kpis|Stawka \/ km|Zarobek \/ h/);
 });
 
@@ -105,8 +104,7 @@ test('summary and table formatting keep actual zero, missing distance, NULL rati
   Object.assign(props.summary, { shiftCount: 0, distanceShiftCount: 0, totalDistance: '0.00', earningsPerShift: null, earningsPerOrder: null });
   props.result.details.trend = [];
   const empty = render(props);
-  assert.match(empty, /Średni zarobek na zmianę<\/dt><dd>Brak danych/);
-  assert.match(empty, /Średni zarobek na zamówienie<\/dt><dd>Brak danych/);
+  assert.match(empty, /Średni zarobek na zmianę<\/dt><dd>—<\/dd>/);
   assert.match(empty, /Łączny dystans<\/dt><dd>Brak danych/);
   assert.match(empty, /15,00/);
   assert.match(empty, /Brak danych w wybranym zestawieniu/);
@@ -131,7 +129,7 @@ test('loading/error hide stale tables and charts but preserve global metrics; co
   const props = fixture();
   const loading = render({ ...props, result: { ...props.result, status: 'loading' } });
   assert.match(loading, /Wczytywanie szczegółowych danych/);
-  assert.match(loading, /Średni zarobek na zamówienie/);
+  assert.match(loading, /Średni zarobek na zmianę/);
   assert.doesNotMatch(loading, /<canvas |<table /);
   const errorProps = { ...props, result: { ...props.result, status: 'error', message: 'Błąd zestawienia.' } };
   const error = render(errorProps);
@@ -162,7 +160,6 @@ test('gross/net use their supplied financial aggregates while global costs and n
   const markup = render(net);
   assert.match(markup, /Szacowane netto · wybrany okres kalendarzowy/);
   assert.match(markup, /140,00/);
-  assert.match(markup, /14,00/);
   assert.match(table(markup), /86,42/);
   assert.match(table(markup), /12,35/);
   assert.match(table(markup), /28,81/);

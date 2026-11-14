@@ -42,24 +42,19 @@ test('hourly chart maps the 12 ready backend buckets and rates without dividing 
   assert.equal(data.labels.at(-1), '22:00–24:00');
   assert.deepEqual(data.values.slice(0, 3), [null, 0, null]);
   assert.equal(data.values[5], 4); // The backend rate wins over 4 events / 3 rounded hours.
-  const markup = render(activity);
-  assert.match(markup, /Brak próby/);
-  assert.match(markup, /Nieobliczalny wynik/);
 });
 
-test('all platforms show one accessible hourly chart, 12 table rows, source/quality information and the backend winner rather than largest count', () => {
+test('all platforms show one accessible hourly chart, the backend winner, a short source note and no quality counters', () => {
   const markup = render();
   assert.equal((markup.match(/<canvas /g) ?? []).length, 1);
-  assert.equal((markup.match(/scope="row"/g) ?? []).length, 12);
   assert.match(markup, /Najaktywniejsza pora[\s\S]*10:00–12:00/);
   assert.match(markup, /4 dostawy\/h/);
   assert.match(markup, /role="region"[^>]*tabindex="0"/);
-  assert.match(markup, /Floating Order Tracking/);
-  assert.match(markup, /nie potwierdza kompletności wszystkich dostaw/);
-  assert.match(markup, /Kompletność rejestracji: nieznana/);
-  assert.match(markup, /Zmiany w próbie<\/dt><dd>2/);
-  assert.match(markup, /Łącznie wykluczone zdarzenia<\/dt><dd>9/);
-  assert.doesNotMatch(markup, /zł|Brutto|Szacowane netto|ordersCount|coverageStatus/);
+  // Keep the honest one-line source note, but drop the legal paragraphs and sample counters.
+  assert.match(markup, /ręcznie rejestrowanych dostaw/);
+  assert.match(markup, /Nie potwierdza kompletności wszystkich dostaw/);
+  assert.doesNotMatch(markup, /Informacje o próbie|Kompletność rejestracji|Zmiany w próbie|Łącznie wykluczone|Przedziały i wartości/);
+  assert.doesNotMatch(markup, /zł|Brutto|Szacowane netto|coverageStatus/);
 });
 
 test('backend ties retain all labels in order and all-zero/no-data rankings never invent a winner', () => {
@@ -67,21 +62,19 @@ test('backend ties retain all labels in order and all-zero/no-data rankings neve
   activity.bestIntervals.keys = ['3', '6'];
   assert.match(render(activity), /06:00–08:00, 12:00–14:00/);
   activity.bestIntervals = { status: 'all_zero', registeredOrdersPerHour: '0.00', keys: [] };
-  assert.match(render(activity), /Brak wyróżniającej się pory/);
+  assert.match(render(activity), /Brak danych/);
   assert.doesNotMatch(render(activity), /analytics-best-result/);
   activity.bestIntervals = { status: 'no_data', registeredOrdersPerHour: null, keys: [] };
-  assert.match(render(activity), /Brak danych do porównania przedziałów/);
+  assert.match(render(activity), /Brak danych/);
 });
 
-test('all six individual platform modes show counts only; zero events in an existing sample stay visible and no platform ranking or hourly rate is shown', () => {
+test('each individual platform mode shows a counts chart only, with no platform ranking or hourly rate', () => {
   for (const platform of platforms) {
     const activity = fixture(platform.value);
     activity.groups.forEach(group => { group.registeredOrders = 0; });
     const markup = render(activity);
     assert.match(markup, new RegExp(`value="${platform.value}" selected`));
-    assert.match(markup, /Zamówienia — liczba zarejestrowanych dostaw/);
-    assert.match(markup, /W dostępnej próbie nie zarejestrowano dostaw tej platformy/);
-    assert.equal((markup.match(/<td>0<\/td>/g) ?? []).length, 12);
+    assert.match(markup, /Liczba zarejestrowanych dostaw/);
     assert.equal((markup.match(/<canvas /g) ?? []).length, 1);
     assert.doesNotMatch(markup.replace(/<[^>]*>/g, ' '), /Najaktywniejsza pora|\/h|workHours|Czas pracy/);
     assert.deepEqual(hourlyActivityChartData(activity).values, Array(12).fill(0));
@@ -101,27 +94,30 @@ test('empty cohorts, no events, overlap and invalid events have distinct empty r
     activity.bestIntervals = { status: 'no_data', registeredOrdersPerHour: null, keys: [] };
     const markup = render(activity);
     assert.match(markup, pattern);
-    assert.doesNotMatch(markup, /<canvas |<td>0<\/td>/);
+    assert.doesNotMatch(markup, /<canvas /);
   }
   const activity = fixture();
   activity.groups.forEach(group => { group.registeredOrdersPerHour = null; });
-  assert.match(render(activity), /Brak obliczalnego wyniku dla wybranego trybu/);
+  assert.match(render(activity), /Brak danych/);
 });
 
 test('loading and error hide stale hourly data, while filter changes and retry use their supplied callbacks', () => {
   const activity = fixture();
   const loading = render(activity, { status: 'loading' });
   assert.match(loading, /role="status"[^>]*>Wczytywanie/);
-  assert.doesNotMatch(loading, /<canvas |Najaktywniejsza pora|Informacje o próbie/);
+  assert.doesNotMatch(loading, /<canvas |Najaktywniejsza pora/);
   const error = render(activity, { status: 'error', message: 'Błąd godzin.' });
   assert.match(error, /role="alert">Błąd godzin/);
   assert.doesNotMatch(error, /<canvas /);
+  // The select and the retry button use the supplied callbacks.
   let chosen;
   let retried = false;
   const tree = Hourly({ ...props(activity), status: 'error', message: 'Błąd godzin.',
     onEventPlatformChange: value => { chosen = value; }, onRetry: () => { retried = true; } });
-  tree.props.children[1].props.children[1].props.onChange({ target: { value: 'wolt' } });
-  tree.props.children[4].props.children[1].props.onClick();
+  const flat = node => Array.isArray(node) ? node.flatMap(flat) : (node && node.props ? [node, ...flat(node.props.children)] : []);
+  const nodes = flat(tree.props.children);
+  nodes.find(n => n.type === 'select').props.onChange({ target: { value: 'wolt' } });
+  nodes.find(n => n.type === 'button').props.onClick();
   assert.equal(chosen, 'wolt');
   assert.equal(retried, true);
 });

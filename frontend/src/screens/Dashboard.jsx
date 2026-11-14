@@ -8,7 +8,7 @@ import AnalyticsPeriodSelector from '../components/AnalyticsPeriodSelector.jsx';
 import { initialAnalyticsCalendar, selectAnalyticsCalendar, stepAnalyticsCalendar } from '../utils/analyticsCalendar.js';
 import { formatRate } from '../utils/netSettings.js';
 import useEarningsMode from '../hooks/useEarningsMode.js';
-import { ChevronDown, Info, RefreshCw } from 'lucide-react';
+import { ChevronDown, Info } from 'lucide-react';
 
 export default function Dashboard({ session, onSessionExpired }) {
   const [calendarSelection, setCalendarSelection] = useState(initialAnalyticsCalendar);
@@ -42,10 +42,7 @@ export default function Dashboard({ session, onSessionExpired }) {
 
   return (
     <>
-      <div className="page-heading flex items-center justify-between gap-3"><h1>Analiza</h1>
-        <button type="button" className="analytics-refresh" disabled={mode === null || statistics.status === 'loading'}
-          onClick={() => setReload(value => value + 1)}><RefreshCw size={16} aria-hidden="true" />Odśwież</button>
-      </div>
+      <div className="page-heading"><h1>Analiza</h1></div>
       <div className="analytics-filters space-y-3">
       <AnalyticsPeriodSelector selection={calendarSelection} range={availableRange}
         confirmedAnchor={statistics.summary?.selection.anchor}
