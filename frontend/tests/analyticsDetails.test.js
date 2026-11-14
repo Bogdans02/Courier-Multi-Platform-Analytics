@@ -140,11 +140,12 @@ test('loading/error hide stale tables and charts but preserve global metrics; co
   let retried = false;
   const tree = Details({ ...errorProps, onTableKindChange: value => { kind = value; },
     onPlatformChange: value => { platform = value; }, result: { ...errorProps.result, retry: () => { retried = true; } } });
-  const content = tree.props.children[1].props.children;
-  const controls = content[1].props.children;
-  controls[0].props.children[1].props.onChange({ target: { value: 'months' } });
-  controls[1].props.children[1].props.onChange({ target: { value: 'wolt' } });
-  content[6].props.children[1].props.onClick();
+  // Walk the tree so the test does not break on layout changes.
+  const flat = node => Array.isArray(node) ? node.flatMap(flat) : (node && node.props ? [node, ...flat(node.props.children)] : []);
+  const nodes = flat(tree.props.children);
+  nodes.find(n => n.props?.id === 'analytics-table-kind').props.onChange({ target: { value: 'months' } });
+  nodes.find(n => n.props?.id === 'analytics-platform').props.onChange({ target: { value: 'wolt' } });
+  nodes.find(n => n.type === 'button').props.onClick();
   assert.equal(kind, 'months');
   assert.equal(platform, 'wolt');
   assert.equal(retried, true);
@@ -158,7 +159,8 @@ test('gross/net use their supplied financial aggregates while global costs and n
   net.result.details = { ...net.result.details, mode: 'estimated_net',
     trend: [{ ...net.result.details.trend[0], totalEarnings: '86.42', earningsPerOrder: '12.35', earningsPerHour: '28.81' }] };
   const markup = render(net);
-  assert.match(markup, /Szacowane netto · wybrany okres kalendarzowy/);
+  // Trend dzienny: money label leads the caption, then the view description.
+  assert.match(markup, /Szacowane netto · Według dnia rozpoczęcia zmiany/);
   assert.match(markup, /140,00/);
   assert.match(table(markup), /86,42/);
   assert.match(table(markup), /12,35/);
