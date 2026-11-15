@@ -1,5 +1,6 @@
 import { Clock } from 'lucide-react';
 import AnalyticsChart from './AnalyticsChart.jsx';
+import AnalyticsHeatmap from './AnalyticsHeatmap.jsx';
 import { platforms } from '../utils/platformEntries.js';
 import { hourlyActivityChartData } from '../utils/analyticsFormat.js';
 
@@ -18,6 +19,8 @@ function ActivityResult({ activity }) {
   const unit = rate ? 'dostawy/h' : 'zarejestrowane dostawy';
   const label = rate ? 'Dostawy na godzinę' : 'Liczba zarejestrowanych dostaw';
   const best = activity.bestIntervals;
+  // Mapa cieplna dzień×godzina tylko przy wystarczającym pokryciu danych — inaczej prostszy widok godzinowy.
+  if (activity.status === 'available' && activity.coverage?.sufficient) return <AnalyticsHeatmap activity={activity} />;
   return <>
     {rate && <div className="card analytics-best-weekday">
       <h3 className="analytics-chart-title flex items-center gap-2"><Clock size={18} aria-hidden="true" />Najaktywniejsza pora</h3>

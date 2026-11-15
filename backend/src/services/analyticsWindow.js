@@ -45,14 +45,24 @@ export function warsawBucketKey(instant) {
   return String(Math.floor(Number(hour) / 2));
 }
 
+// Dzień tygodnia 1..7 (poniedziałek..niedziela) w czasie warszawskim dla danej chwili.
+// Czytamy lokalną datę tym samym mechanizmem co godziny, więc północ liczy się poprawnie też w dni zmiany czasu.
+export function warsawWeekdayKey(instant) {
+  const [year, month, day] = localDate.format(instant).split('-').map(Number);
+  const dow = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+  return String(dow === 0 ? 7 : dow);
+}
+
 export function dateFromMicroseconds(value) {
   // Floor also before the Unix epoch; BigInt division alone truncates toward zero.
   return new Date(Number(value / 1000n - (value % 1000n < 0n ? 1n : 0n)));
 }
 
-export function intersectWarsawBuckets(startUs, endUs) {
-  const totals = Array(12).fill(0n);
-  if (endUs <= startUs) return totals;
+// Dzieli przedział zmiany na odcinki między kolejnymi granicami (2-godzinne pory + północ + zmiana czasu)
+// i zwraca czas trwania każdego odcinka razem z jego porą i dniem tygodnia. Północ jest już granicą,
+// więc zmiana przez północ sama rozdziela się na dwa dni — bez dodatkowej logiki.
+function warsawSegments(startUs, endUs, visit) {
+  if (endUs <= startUs) return;
   const start = dateFromMicroseconds(startUs), end = dateFromMicroseconds(endUs);
   const day = new Date(`${localDate.format(start)}T00:00:00.000Z`);
   const lastDay = new Date(`${localDate.format(end)}T00:00:00.000Z`);
@@ -79,9 +89,22 @@ export function intersectWarsawBuckets(startUs, endUs) {
   const sorted = [...boundaries].filter(value => value >= startUs && value <= endUs)
     .sort((a, b) => a < b ? -1 : a > b ? 1 : 0);
   for (let i = 1; i < sorted.length; i++) {
-    const key = warsawBucketKey(dateFromMicroseconds(sorted[i - 1]));
-    totals[Number(key)] += sorted[i] - sorted[i - 1];
+    const at = dateFromMicroseconds(sorted[i - 1]);
+    visit(Number(warsawBucketKey(at)), Number(warsawWeekdayKey(at)), sorted[i] - sorted[i - 1]);
   }
+}
+
+// Czas pracy w 12 porach dnia (jak dotąd). Teraz to suma kolumn siatki dzień×pora.
+export function intersectWarsawBuckets(startUs, endUs) {
+  const totals = Array(12).fill(0n);
+  warsawSegments(startUs, endUs, (hour, _weekday, micros) => { totals[hour] += micros; });
+  return totals;
+}
+
+// Czas pracy w siatce 7 dni × 12 por. Zwraca płaską tablicę 84 komórek: indeks = (dzień-1) * 12 + pora.
+export function intersectWarsawDayBuckets(startUs, endUs) {
+  const totals = Array(84).fill(0n);
+  warsawSegments(startUs, endUs, (hour, weekday, micros) => { totals[(weekday - 1) * 12 + hour] += micros; });
   return totals;
 }
 

@@ -31,6 +31,72 @@ const props = activity => ({ activity, status: 'success', eventPlatform: activit
   onEventPlatformChange() {}, onRetry() {} });
 const render = (activity = fixture(), extra = {}) => renderToStaticMarkup(createElement(Hourly, { ...props(activity), ...extra }));
 
+function heatmapFixture(eventPlatform = 'all') {
+  const activity = fixture(eventPlatform);
+  const rate = eventPlatform === 'all';
+  const weekdayLabels = ['Poniedziałek', 'Wtorek', 'Środa', 'Czwartek', 'Piątek', 'Sobota', 'Niedziela'];
+  // Siatka 7×12: aktywne komórki w pon-czw, najgorętsza we wtorek 18:00.
+  const active = new Map([['1-5', 1], ['2-9', rate ? 2.5 : 5], ['2-10', 1.5], ['4-5', 1], ['4-9', 1],
+    ['5-6', 0.5], ['6-9', 1], ['7-4', 0.5]]);
+  const cells = [];
+  for (let weekday = 1; weekday <= 7; weekday++) {
+    for (let hour = 0; hour < 12; hour++) {
+      const value = active.get(`${weekday}-${hour}`) ?? null;
+      cells.push({ weekday, hour, label: `${weekdayLabels[weekday - 1]} ${String(hour * 2).padStart(2, '0')}:00–${String(hour * 2 + 2).padStart(2, '0')}:00`,
+        status: value === null ? 'no_data' : 'available', registeredOrders: value === null ? null : 2, value });
+    }
+  }
+  return { ...activity, weekdayLabels, cells,
+    coverage: { activeCells: active.size, activeWeekdays: 5, sufficient: true },
+    best: rate ? { weekday: 2, hour: 9, label: 'Wtorek 18:00–20:00', value: 2.5 }
+      : { weekday: 2, hour: 9, label: 'Wtorek 18:00–20:00', value: 5 } };
+}
+
+test('sufficient coverage shows the day×hour heatmap with the hottest cell and hides the simple hourly chart', () => {
+  const markup = render(heatmapFixture());
+  assert.match(markup, /Kiedy jest gorąco/);
+  assert.match(markup, /Najcieplej:[\s\S]*Wtorek 18:00–20:00/);
+  assert.match(markup, /2,5 dostawy\/h/);
+  // Siatka: 12 kolumn godzin + 7 wierszy dni (nagłówki), bez wykresu słupkowego.
+  assert.equal((markup.match(/<table /g) ?? []).length, 1);
+  assert.match(markup, /scope="col">00</);
+  assert.match(markup, /scope="row">Wt</);
+  assert.doesNotMatch(markup, /<canvas /);
+  assert.match(markup, /role="region"[^>]*tabindex="0"/);
+});
+
+test('insufficient coverage keeps the simpler hourly chart instead of a sparse heatmap', () => {
+  const sparse = heatmapFixture();
+  sparse.coverage = { activeCells: 3, activeWeekdays: 2, sufficient: false };
+  const markup = render(sparse);
+  assert.doesNotMatch(markup, /Kiedy jest gorąco/);
+  assert.equal((markup.match(/<canvas /g) ?? []).length, 1); // wraca prosty widok godzinowy
+});
+
+test('heatmap cells are accessible touch and keyboard controls, preselecting the hottest cell', () => {
+  const markup = render(heatmapFixture());
+  assert.equal((markup.match(/class="analytics-heatmap-cell"/g) ?? []).length, 84);
+  // Najgorętsza komórka jest zaznaczona od razu, a jej wynik widoczny w podpowiedzi — bez dotykania mapy.
+  assert.match(markup, /<button type="button"[^>]*aria-label="Wtorek 18:00–20:00: 2,5 dostawy\/h"[^>]*aria-pressed="true"/);
+  assert.match(markup, /aria-label="Poniedziałek 00:00–02:00: Brak danych"[^>]*aria-pressed="false"/);
+  assert.match(markup, /role="status" aria-atomic="true">[\s\S]*Wtorek 18:00–20:00[\s\S]*2,5 dostawy\/h/);
+});
+
+test('heatmap without a hottest cell falls back to the touch hint and no preselection', () => {
+  const activity = heatmapFixture();
+  activity.best = null;
+  const markup = render(activity);
+  assert.doesNotMatch(markup, /aria-pressed="true"/);
+  assert.match(markup, /role="status" aria-atomic="true">Dotknij komórki/);
+});
+
+test('count-mode heatmap shows order counts and no rate unit', () => {
+  const markup = render(heatmapFixture('wolt'));
+  assert.match(markup, /Najcieplej:[\s\S]*Wtorek 18:00–20:00/);
+  assert.match(markup, /5 dostawy/);
+  assert.doesNotMatch(markup, /dostawy\/h/);
+});
+
 test('hourly chart maps the 12 ready backend buckets and rates without dividing counts by time or replacing missing samples with zero', () => {
   const activity = fixture();
   activity.groups[0] = { ...activity.groups[0], registeredOrders: null, registeredOrdersPerHour: null, workHours: 0, status: 'no_data' };

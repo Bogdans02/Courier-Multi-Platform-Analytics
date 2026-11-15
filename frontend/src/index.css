@@ -322,6 +322,24 @@
 .analytics-best-weekday { display: grid; gap: 10px; }
 .analytics-best-result { display: flex; flex-wrap: wrap; gap: 6px 16px; justify-content: space-between; align-items: baseline; font-weight: 600; }
 .analytics-best-rate { color: var(--color-text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* Mapa cieplna dzień×godzina. Cała siatka 7×12 mieści się w karcie na telefonie, bez przewijania strony. */
+.analytics-heatmap-scroll { min-width: 0; max-width: 100%; overflow-x: auto; padding-bottom: 6px; }
+.analytics-heatmap { border-collapse: separate; border-spacing: 1px; margin: 0 auto; }
+.analytics-heatmap th { font-size: .62rem; font-weight: 600; color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
+.analytics-heatmap thead th { padding-bottom: 2px; text-align: center; }
+.analytics-heatmap tbody th { padding-right: 5px; text-align: right; white-space: nowrap; }
+.analytics-heatmap-corner { width: 26px; }
+.analytics-heatmap td { padding: 0; border-radius: 5px; }
+/* Sama płytka jest mała, ale klikalny obszar (::after) sięga poza nią, żeby łatwo trafić palcem. */
+.analytics-heatmap-cell { position: relative; display: block; width: 20px; height: 20px; min-height: 0; padding: 0; border: 0; border-radius: inherit; background: transparent; }
+.analytics-heatmap-cell::after { content: ''; position: absolute; inset: -6px; }
+.analytics-heatmap-cell[aria-pressed="true"], .analytics-heatmap-cell:focus-visible { outline: 2px solid var(--color-text); outline-offset: 1px; z-index: 1; }
+.analytics-heatmap-selection { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; min-height: 40px; align-items: center; }
+.analytics-heatmap-selection span { font-variant-numeric: tabular-nums; }
+.analytics-heatmap td.is-worked { border: 1px solid var(--color-line); background-color: color-mix(in srgb, var(--color-accent) 0%, transparent); }
+.analytics-heatmap td.is-empty { border: 1px dashed var(--color-line); background: repeating-linear-gradient(45deg, transparent, transparent 4px, var(--color-line) 4px, var(--color-line) 5px); opacity: .5; }
+.analytics-heatmap-legend { display: flex; align-items: center; gap: 8px; }
+.analytics-heatmap-legend-bar { flex: 1; max-width: 120px; height: 8px; border-radius: 4px; border: 1px solid var(--color-line); background: linear-gradient(90deg, color-mix(in srgb, var(--color-accent) 12%, transparent), var(--color-accent)); }
 .analytics-sample-info { margin-left: auto; position: relative; font-weight: 400; }
 .analytics-sample-info > summary { display: grid; place-items: center; min-width: 44px; min-height: 44px; list-style: none; color: var(--color-text-muted); }
 .analytics-sample-info > summary::-webkit-details-marker { display: none; }
