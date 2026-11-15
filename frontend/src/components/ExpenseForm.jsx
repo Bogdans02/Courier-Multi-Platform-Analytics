@@ -22,7 +22,6 @@ export default function ExpenseForm({ expense, shifts, initialShiftId, onSubmit,
   }
 
     return <form onSubmit={submit} className="space-y-3 card">
-    {expense && <h2 className="text-xl font-semibold">Edytuj koszt</h2>}
     {error && <p role="alert" className="text-red-400">{error}</p>}
     <fieldset disabled={pending} className="space-y-3 disabled:opacity-60">
       <legend className="sr-only">Dane kosztu</legend>

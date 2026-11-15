@@ -229,6 +229,17 @@
 .history-summary dt, .metric-row dt { color: var(--color-text-muted); font-size: .75rem; }
 .history-summary dd, .metric-row dd { margin-top: 4px; font-size: 1rem; font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .history-summary p { margin-top: 10px; }
+/* Koszty: podsumowanie miesiąca, rozbicie na kategorie i kompaktowe karty. */
+.expense-summary { display: grid; gap: 14px; }
+.expense-summary-total { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.expense-summary-total strong { font-size: 1.5rem; font-weight: 750; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.expense-breakdown { display: grid; gap: 8px; padding-top: 14px; border-top: 1px solid var(--color-line); }
+.expense-breakdown li { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; font-size: .85rem; }
+.expense-breakdown strong { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.expense-card { padding: 14px; display: grid; gap: 4px; }
+.expense-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; font-weight: 600; }
+.expense-card-head strong { font-size: 1.05rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.expense-card-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 /* Szczegóły zmiany */
 .back-link { display: inline-flex; align-items: center; gap: 2px; align-self: flex-start; min-height: 44px; margin-bottom: -12px; color: var(--color-link); font-weight: 600; }
 .card-title { margin-bottom: 8px; font-size: .98rem; font-weight: 650; }

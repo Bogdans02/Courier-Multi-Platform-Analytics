@@ -1,142 +1,60 @@
 import { useEffect, useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router';
-import { createExpense, getExpenses, updateExpense, deleteExpense } from '../services/api/expenses.js';
-import { getShifts, getActiveShift } from '../services/api/shifts.js';
-import { expenseCategories, validateExpenseFilters } from '../utils/expenseValidation.js';
-import { formatMoney } from '../utils/shiftFormat.js';
+import { useLocation, useNavigate, useParams } from 'react-router';
+import { createExpense, getExpenses, updateExpense } from '../services/api/expenses.js';
+import { getActiveShift, getShifts } from '../services/api/shifts.js';
 import ExpenseForm from '../components/ExpenseForm.jsx';
 import BackLink from '../components/BackLink.jsx';
-import { formatDate } from '../utils/dateFormat.js';
 
-const emptyFilters = { from: '', to: '', category: '' };
-
-export default function Expenses({ session, onSessionExpired, adding = false }) {
+// Osobny ekran dodawania i edycji kosztu. Lista kosztów żyje w Historii (zakładka Koszty).
+export default function Expenses({ session, onSessionExpired, mode }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const [filters, setFilters] = useState(emptyFilters);
-  const [draftFilters, setDraftFilters] = useState(emptyFilters);
-  const [filterError, setFilterError] = useState('');
+  const params = useParams();
+  const editing = mode === 'edit';
+  const expenseId = editing ? Number(params.id) : null;
+  const [result, setResult] = useState({ status: 'loading' });
   const [reload, setReload] = useState(0);
-  const [result, setResult] = useState({ key: '', status: 'loading' });
-  const [editing, setEditing] = useState(null);
-  const [confirmDelete, setConfirmDelete] = useState(null);
-  const [pending, setPending] = useState(false);
-  const [message, setMessage] = useState(location.state?.message ?? '');
-  const [error, setError] = useState('');
-  const key = `${JSON.stringify(filters)}/${reload}`;
-  const current = result.key === key ? result : { status: 'loading' };
 
   useEffect(() => {
     const controller = new AbortController();
-    Promise.all([getExpenses(session.token, filters, controller.signal), getShifts(session.token, controller.signal),
-      getActiveShift(session.token, controller.signal)]).then(([{ expenses }, { shifts }, { shift }]) => {
-      if (!controller.signal.aborted) setResult({ key, status: 'success', expenses,
-        shifts: shift ? [shift, ...shifts] : shifts });
-    }).catch((error) => {
-      if (controller.signal.aborted) return;
-      if (error.status === 401) onSessionExpired();
-      else setResult({ key, status: 'error', message: error.message });
-    });
+    // W edycji pobieramy też sam koszt (brak osobnego endpointu — bierzemy z listy lub ze stanu nawigacji).
+    const needsExpense = editing && !location.state?.expense;
+    Promise.all([getShifts(session.token, controller.signal), getActiveShift(session.token, controller.signal),
+      needsExpense ? getExpenses(session.token, {}, controller.signal) : Promise.resolve(null)])
+      .then(([{ shifts }, { shift }, list]) => {
+        if (controller.signal.aborted) return;
+        const expense = location.state?.expense ?? list?.expenses.find((item) => item.id === expenseId) ?? null;
+        if (editing && !expense) { setResult({ status: 'error', message: 'Nie znaleziono kosztu.' }); return; }
+        setResult({ status: 'success', shifts: shift ? [shift, ...shifts] : shifts, expense });
+      })
+      .catch((error) => {
+        if (controller.signal.aborted) return;
+        if (error.status === 401) onSessionExpired();
+        else setResult({ status: 'error', message: error.message });
+      });
     return () => controller.abort();
-  }, [session.token, filters, key, onSessionExpired]);
+  }, [session.token, editing, expenseId, location.state, reload, onSessionExpired]);
 
   async function save(body) {
     try {
-      if (!adding && editing) await updateExpense(session.token, editing.id, body);
+      if (editing) await updateExpense(session.token, expenseId, body);
       else await createExpense(session.token, body);
-      setEditing(null);
-      setMessage('Koszt został zapisany.');
-      setReload((value) => value + 1);
-      if (adding) navigate('/expenses', { state: { message: 'Koszt został zapisany.' } });
+      navigate('/history?view=koszty', { state: { message: 'Koszt został zapisany.' } });
     } catch (error) {
       if (error.status === 401) onSessionExpired();
       throw error;
     }
   }
 
-  async function remove(id) {
-    setPending(true);
-    setError('');
-    setMessage('');
-    try {
-      await deleteExpense(session.token, id);
-      setConfirmDelete(null);
-      if (editing?.id === id) setEditing(null);
-      setMessage('Koszt został usunięty.');
-      setReload((value) => value + 1);
-    } catch (error) {
-      if (error.status === 401) onSessionExpired();
-      else setError(error.message);
-    } finally { setPending(false); }
-  }
-
   return <>
-    {adding ? <BackLink to="/expenses">Koszty</BackLink> : <BackLink to="/more">Więcej</BackLink>}
-    <div className="page-heading"><h1>{adding ? 'Nowy koszt' : 'Koszty'}</h1></div>
-    {message && <p role="status">{message}</p>}
-    {error && <p role="alert" className="text-red-400">{error}</p>}
-    {current.status === 'loading' && <p role="status">Wczytywanie kosztów i zmian...</p>}
-    {current.status === 'error' && <div>
-      <p role="alert" className="text-red-400">{current.message}</p>
+    <BackLink to="/history?view=koszty">Koszty</BackLink>
+    <div className="page-heading"><h1>{editing ? 'Edytuj koszt' : 'Nowy koszt'}</h1></div>
+    {result.status === 'loading' && <p role="status">Wczytywanie...</p>}
+    {result.status === 'error' && <div>
+      <p role="alert" className="text-red-400">{result.message}</p>
       <button type="button" className="button-secondary mt-2" onClick={() => setReload((value) => value + 1)}>Spróbuj ponownie</button>
     </div>}
-    {adding && current.status === 'success' && <ExpenseForm key={`new/${reload}`}
-      shifts={current.shifts} initialShiftId={location.state?.shiftId}
-      onSubmit={save} onCancel={() => navigate('/expenses')} />}
-    {!adding && <>
-    <Link to="/expenses/new" className="button-primary">+ Dodaj koszt</Link>
-    <details className="card"><summary>Filtruj koszty</summary>
-    <form className="space-y-3" onSubmit={(event) => {
-      event.preventDefault();
-      try {
-        setFilters(validateExpenseFilters(draftFilters));
-        setEditing(null);
-        setConfirmDelete(null);
-        setFilterError('');
-      }
-      catch (error) { setFilterError(error.message); }
-    }}>
-      <label htmlFor="expense-from" className="block">Data od</label>
-      <input id="expense-from" type="date" value={draftFilters.from} className="form-input"
-        onChange={(event) => setDraftFilters({ ...draftFilters, from: event.target.value })} />
-      <label htmlFor="expense-to" className="block">Data do</label>
-      <input id="expense-to" type="date" value={draftFilters.to} className="form-input"
-        onChange={(event) => setDraftFilters({ ...draftFilters, to: event.target.value })} />
-      <label htmlFor="expense-filter-category" className="block">Kategoria</label>
-      <select id="expense-filter-category" value={draftFilters.category} className="form-input"
-        onChange={(event) => setDraftFilters({ ...draftFilters, category: event.target.value })}>
-        <option value="">Wszystkie kategorie</option>
-        {expenseCategories.map(({ value, label }) => <option value={value} key={value}>{label}</option>)}
-      </select>
-      {filterError && <p role="alert" className="text-red-400">{filterError}</p>}
-      <button type="submit" className="button-secondary">Zastosuj filtry</button>
-    </form>
-    </details>
-    <h2 className="text-xl font-semibold">Historia kosztów</h2>
-    {current.status === 'success' && (current.expenses.length === 0
-      ? <p className="empty-state">Brak kosztów dla wybranych filtrów.</p>
-      : <ul className="space-y-3">{current.expenses.map((expense) => <li key={expense.id}
-        className="space-y-2 card">
-        <p className="font-semibold">{expenseCategories.find(({ value }) => value === expense.category)?.label ?? expense.category}: {formatMoney(expense.amount)}</p>
-        <p>Data: {formatDate(expense.expenseDate)}</p>
-        {expense.note && <p className="whitespace-pre-wrap break-words">{expense.note}</p>}
-        <p>{expense.shiftId ? <Link to={`/shifts/${expense.shiftId}`} className="text-link">Powiązana zmiana #{expense.shiftId}</Link> : 'Bez powiązania ze zmianą'}</p>
-        {editing?.id === expense.id ? <ExpenseForm key={`${expense.id}/${reload}`}
-          expense={editing} shifts={current.shifts} onSubmit={save} onCancel={() => setEditing(null)}
-        /> : confirmDelete === expense.id ? <div className="space-y-2">
-          <p>Czy na pewno usunąć ten koszt? Tej operacji nie można cofnąć.</p>
-          <div className="flex flex-wrap gap-3">
-            <button type="button" disabled={pending} onClick={() => remove(expense.id)}
-              className="button-danger">{pending ? 'Usuwanie...' : 'Potwierdź usunięcie'}</button>
-            <button type="button" disabled={pending} onClick={() => setConfirmDelete(null)} className="button-secondary">Anuluj usuwanie</button>
-          </div>
-        </div> : <div className="flex flex-wrap gap-3">
-          <button type="button" disabled={pending} onClick={() => { setEditing(expense); setConfirmDelete(null); setMessage(''); setError(''); }}
-            className="button-secondary">Edytuj koszt</button>
-          <button type="button" disabled={pending} onClick={() => { setConfirmDelete(expense.id); setError(''); }}
-            className="button-danger">Usuń koszt</button>
-        </div>}
-      </li>)}</ul>)}
-    </>}
+    {result.status === 'success' && <ExpenseForm shifts={result.shifts} expense={result.expense}
+      initialShiftId={location.state?.shiftId} onSubmit={save} onCancel={() => navigate('/history?view=koszty')} />}
   </>;
 }

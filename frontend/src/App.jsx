@@ -74,11 +74,12 @@ export default function App() {
           <Route path="/settings" element={session
             ? <Settings session={session} onSessionExpired={expireSession} />
             : <Navigate to="/login" replace />} />
-          <Route path="/expenses" element={session
-            ? <Expenses key="list" session={session} onSessionExpired={expireSession} />
-            : <Navigate to="/login" replace />} />
+          <Route path="/expenses" element={<Navigate to="/history?view=koszty" replace />} />
           <Route path="/expenses/new" element={session
-            ? <Expenses key="new" session={session} onSessionExpired={expireSession} adding />
+            ? <Expenses key="new" session={session} onSessionExpired={expireSession} mode="new" />
+            : <Navigate to="/login" replace />} />
+          <Route path="/expenses/:id/edit" element={session
+            ? <Expenses key="edit" session={session} onSessionExpired={expireSession} mode="edit" />
             : <Navigate to="/login" replace />} />
           <Route path="/more" element={session
             ? <More session={session} onLogout={expireSession} />
@@ -88,8 +89,8 @@ export default function App() {
       </main>
       {session && <nav className="bottom-nav" aria-label="Nawigacja główna"><div className="bottom-nav-inner">
         {links.map(({ to, label, icon: NavIcon }) => {
-          const isMore = to === '/more' && ['/settings', '/expenses', '/expenses/new'].includes(location.pathname);
-          const isHistory = to === '/history' && /^\/shifts\/\d+$/.test(location.pathname);
+          const isMore = to === '/more' && location.pathname === '/settings';
+          const isHistory = to === '/history' && (/^\/shifts\/\d+$/.test(location.pathname) || location.pathname.startsWith('/expenses'));
           return <NavLink key={to} to={to} end className={({ isActive }) => `nav-item ${isActive || isMore || isHistory ? 'active' : ''}`}>
             <NavIcon size={22} strokeWidth={1.8} aria-hidden="true" /><span>{label}</span>
           </NavLink>;
