@@ -711,8 +711,10 @@ test('settings start unconfigured, require authorization and isolate reads and w
   const empty = await request('/settings');
   assert.equal(empty.status, 200);
   assert.equal(empty.cache, 'no-store');
-  assert.deepEqual(empty.body.settings, { netProfile: null, deductionRate: null, ppkOptOut: null });
+  assert.deepEqual(empty.body.settings, { netProfile: null, deductionRate: null, ppkOptOut: null,
+    transportType: null, fuelPer100km: null, fuelPricePerL: null });
   assert.equal(empty.body.profiles.length, 6);
+  assert.equal(empty.body.transportTypes.length, 5);
   for (const method of ['GET', 'PUT']) {
     for (const auth of [null, 'invalid']) {
       assert.equal((await request('/settings', { method, auth,
@@ -724,7 +726,8 @@ test('settings start unconfigured, require authorization and isolate reads and w
     method: 'PUT', body: { netProfile: 'unemployed_under_26', ppkOptOut: true, deductionRate: '0', user_id: other },
   });
   assert.equal(saved.status, 200);
-  assert.deepEqual(saved.body.settings, { netProfile: 'unemployed_under_26', deductionRate: '0.19250', ppkOptOut: true });
+  assert.deepEqual(saved.body.settings, { netProfile: 'unemployed_under_26', deductionRate: '0.19250', ppkOptOut: true,
+    transportType: null, fuelPer100km: null, fuelPricePerL: null });
   assert.deepEqual((await request(`/settings?user_id=${other}`)).body.settings, saved.body.settings);
   assert.equal((await request(`/settings?user_id=${owner}`, { auth: otherToken })).body.settings.netProfile, null);
   await request('/settings', { method: 'PUT', auth: otherToken, body: { netProfile: 'student_under_26', user_id: owner } });
@@ -946,6 +949,42 @@ test('current week includes the Warsaw Monday boundary and Sunday, with exact ne
   }
   assert.equal((await request('/analytics/summary?period=current_week')).status, 200);
   assert.equal((await request('/analytics/details?period=current_week')).status, 200);
+});
+
+test('fuel cost uses distance and transport settings, take-home subtracts it, and no transport means zero', async () => {
+  const now = new Date('2026-11-20T12:00:00Z');
+  // Dwie zmiany: jedna 10 km, druga bez dystansu (paliwo tylko z pierwszej).
+  await seed({ startedAt: new Date('2026-11-18T08:00:00Z'), distance: 10, entries: [['glovo', '100.00', 5]] });
+  await seed({ startedAt: new Date('2026-11-19T08:00:00Z'), distance: null, entries: [['glovo', '100.00', 5]] });
+  const service = createAnalyticsService(createAnalyticsRepository(pool), () => now,
+    { async get() {
+      return { netProfile: 'custom', deductionRate: '0.20000',
+        fuelPer100km: '8.00', fuelPricePerL: '6.000' };
+    } });
+  // paliwo = 10 km × 8/100 × 6 = 4.80; drugi shift bez dystansu nie dokłada paliwa.
+  const gross = await service.summary(owner, 'month', 'gross');
+  assert.equal(gross.totalEarnings, '200.00');
+  assert.equal(gross.fuelCost, '4.80');
+  assert.equal(gross.takeHome, '195.20');
+  // netto 20%: earnings = 160.00; take-home = 160 − 4.80 = 155.20.
+  const net = await service.summary(owner, 'month', 'estimated_net');
+  assert.equal(net.totalEarnings, '160.00');
+  assert.equal(net.fuelCost, '4.80');
+  assert.equal(net.takeHome, '155.20');
+
+  // Bez ustawień transportu: paliwo = 0, take-home = zarobek.
+  const noTransport = createAnalyticsService(createAnalyticsRepository(pool), () => now,
+    { async get() { return { netProfile: null, deductionRate: null, fuelPer100km: null, fuelPricePerL: null }; } });
+  const grossNone = await noTransport.summary(owner, 'month', 'gross');
+  assert.equal(grossNone.fuelCost, '0.00');
+  assert.equal(grossNone.takeHome, '200.00');
+
+  // Rower: spalanie/cena są NULL, więc paliwo = 0 nawet z dystansem.
+  const bike = createAnalyticsService(createAnalyticsRepository(pool), () => now,
+    { async get() { return { fuelPer100km: null, fuelPricePerL: null }; } });
+  const grossBike = await bike.summary(owner, 'month', 'gross');
+  assert.equal(grossBike.fuelCost, '0.00');
+  assert.equal(grossBike.takeHome, '200.00');
 });
 
 test('summary recalculates after editing entries, time, distance and period, and after deleting a shift', async () => {

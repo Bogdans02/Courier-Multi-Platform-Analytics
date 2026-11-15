@@ -27,6 +27,7 @@ before(async () => {
 
   assert.deepEqual(await runMigrations(pool), [
     '001_initial_schema.sql', '002_net_settings_ppk.sql', '003_add_pyszne_and_wolt.sql', '004_order_events.sql',
+    '005_transport_settings.sql',
   ]);
 });
 
@@ -89,7 +90,7 @@ test('failed migrations roll back DDL and migration history together', async () 
         (SELECT COUNT(*)::integer FROM schema_migrations) AS migrations_count
     `);
     assert.equal(row.probe, null);
-    assert.equal(row.migrations_count, 4);
+    assert.equal(row.migrations_count, 5);
   } finally {
     await rm(join(directory, '002_broken.sql'), { force: true });
     await rmdir(directory);

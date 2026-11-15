@@ -121,7 +121,10 @@ export function createAnalyticsRepository(pool) {
       `, [JSON.stringify(groups), eventPlatform]);
       return row;
     },
-    async summary(userId, from, to, deductionRate = '0', selection = null, previousWindow = null) {
+    async summary(userId, from, to, deductionRate = '0', fuel = {}, selection = null, previousWindow = null) {
+      // Koszt paliwa zmiany = km × (spalanie/100) × cena. Brak ustawień transportu → 0 (nie błąd).
+      const fuelLitersPerKm = fuel.fuelPer100km == null ? null : String(Number(fuel.fuelPer100km) / 100);
+      const fuelPrice = fuel.fuelPricePerL ?? null;
       // The current selection decides whether this is a partial comparison, even
       // when the shorter previous month was saturated to its full calendar end.
       const previousEndedCutoff = selection?.isPartial ? previousWindow?.observationCutoff : selection?.asOf;
@@ -134,7 +137,9 @@ export function createAnalyticsRepository(pool) {
           WHERE $7::timestamptz IS NOT NULL
         ), shift_totals AS (
           SELECT w.key, s.distance_km, EXTRACT(EPOCH FROM (s.ended_at - s.started_at)) / 3600 AS hours,
-            entries.earnings * (1 - $4::numeric) AS earnings, entries.orders
+            entries.earnings * (1 - $4::numeric) AS earnings, entries.orders,
+            -- Koszt paliwa tylko gdy jest dystans i ustawienia transportu; inaczej 0.
+            COALESCE(s.distance_km * $11::numeric * $12::numeric, 0) AS fuel_cost
           FROM windows w JOIN shifts s ON s.user_id = $1 AND s.status = 'completed'
             AND (w.start IS NULL OR s.started_at >= w.start) AND s.started_at <= w.cutoff
             AND (w.end_exclusive IS NULL OR s.started_at < w.end_exclusive)
@@ -151,7 +156,8 @@ export function createAnalyticsRepository(pool) {
             COALESCE(SUM(orders), 0) AS orders,
             COALESCE(SUM(hours) FILTER (WHERE earnings IS NOT NULL), 0) AS hours,
             COALESCE(SUM(distance_km) FILTER (WHERE earnings IS NOT NULL), 0) AS distance,
-            COALESCE(SUM(earnings) FILTER (WHERE distance_km IS NOT NULL), 0) AS distance_earnings
+            COALESCE(SUM(earnings) FILTER (WHERE distance_km IS NOT NULL), 0) AS distance_earnings,
+            COALESCE(SUM(fuel_cost) FILTER (WHERE earnings IS NOT NULL), 0) AS fuel_cost
           FROM windows w LEFT JOIN shift_totals s ON s.key = w.key GROUP BY w.key
         ), metric_values AS (
           -- Keep unrounded NUMERIC values until the final percentage. The distance
@@ -187,6 +193,7 @@ export function createAnalyticsRepository(pool) {
           expense_totals.count AS "expenseCount", ROUND(expense_totals.amount, 2)::text AS "totalExpenses",
           distance_shift_count AS "distanceShiftCount",
           ROUND(earnings, 2)::text AS "totalEarnings", orders::text AS "totalOrders",
+          ROUND(fuel_cost, 2)::text AS "fuelCost", ROUND(earnings - fuel_cost, 2)::text AS "takeHome",
           hours::text AS "totalHours", ROUND(distance, 2)::text AS "totalDistance",
           ROUND(earnings / NULLIF(shift_count, 0), 2)::text AS "earningsPerShift",
           ROUND(earnings / NULLIF(hours, 0), 2)::text AS "earningsPerHour",
@@ -205,7 +212,7 @@ export function createAnalyticsRepository(pool) {
       `, [userId, from, to, deductionRate, selection?.endExclusive ?? null,
         selection?.asOf ?? null, previousWindow?.start ?? null,
         previousWindow?.observationCutoff ?? null, previousWindow?.endExclusive ?? null,
-        previousEndedCutoff ?? null]);
+        previousEndedCutoff ?? null, fuelLitersPerKm, fuelPrice]);
       return row;
     },
   };

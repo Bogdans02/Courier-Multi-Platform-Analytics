@@ -109,15 +109,15 @@ test('both analytics methods use the same selection mechanism and read the serve
     async availableRange() { return { earliestDate: null, currentDate: '2026-11-05' }; },
     async hourlyGroups() { return { groups: [], bestRate: null }; },
     async details(...args) { calls.push(args); return { weekdays: [], startTimes: [] }; },
-  }, () => { clockReads++; return now; });
+  }, () => { clockReads++; return now; }, { async get() { return { fuelPer100km: null, fuelPricePerL: null }; } });
   const query = { calendar: 'month', anchor: '2026-11-05' };
   const summary = await service.summary(42, undefined, 'gross', query);
   assert.equal(clockReads, 1);
   const details = await service.details(42, undefined, 'all', 'gross', { ...query, asOf: summary.selection.asOf });
   assert.equal(clockReads, 2);
   assert.deepEqual(summary.selection, details.selection);
-  assert.equal(calls[0][4], summary.selection);
-  assert.deepEqual(calls[0][5], summary.comparison.previousWindow);
+  assert.equal(calls[0][5], summary.selection);
+  assert.deepEqual(calls[0][6], summary.comparison.previousWindow);
   assert.equal(calls[1].at(-1), details.selection);
   assert.equal(summary.selection.asOf, now.toISOString());
   assert.equal(Object.hasOwn(await service.summary(42, 'all'), 'selection'), false);

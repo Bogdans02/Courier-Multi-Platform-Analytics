@@ -23,7 +23,7 @@ test('current week begins at Warsaw Monday midnight for both analytics endpoints
     assert.equal(details.from, expected);
     assert.equal(summary.to, now.toISOString());
     assert.equal(details.to, now.toISOString());
-    assert.deepEqual(calls, [[42, new Date(expected), now, '0.20000'],
+    assert.deepEqual(calls, [[42, new Date(expected), now, '0.20000', { fuelPer100km: null, fuelPricePerL: null }],
       [42, new Date(expected), now, 'all', '0.20000']]);
   }
 });
@@ -34,11 +34,11 @@ test('summary validates the period and calculates rolling UTC bounds before quer
   const service = createAnalyticsService({ async summary(...args) {
     calls.push(args);
     return { totalHours: '1.25', totalOrders: '3' };
-  } }, () => now);
+  } }, () => now, { async get() { return { fuelPer100km: null, fuelPricePerL: null }; } });
   for (const [period, days] of [['week', 7], ['month', 30], ['three_months', 90], ['all', null], [undefined, null]]) {
     const summary = await service.summary(42, period);
     const from = days ? new Date(now.getTime() - days * 86400000) : null;
-    assert.deepEqual(calls.at(-1), [42, from, now, '0']);
+    assert.deepEqual(calls.at(-1), [42, from, now, '0', { fuelPer100km: null, fuelPricePerL: null }]);
     assert.equal(summary.from, from?.toISOString() ?? null);
     assert.equal(summary.to, now.toISOString());
     assert.equal(summary.period, period ?? 'all');
@@ -153,7 +153,8 @@ test('calendar summary forwards NUMERIC comparison results and uses one clock an
   assert.equal(calls.length, 1);
   assert.equal(calls[0][0], 42);
   assert.equal(calls[0][3], '0.20000');
-  assert.equal(calls[0][4].asOf, calls[0][5].asOf);
+  assert.deepEqual(calls[0][4], { fuelPer100km: null, fuelPricePerL: null });
+  assert.equal(calls[0][5].asOf, calls[0][6].asOf);
   assert.equal(summary.comparison.previousWindow.observationCutoff, '2026-10-28T14:30:00.000Z');
   assert.deepEqual(summary.comparison.metrics, metrics);
   assert.equal(summary.totalOrders, 0);
@@ -169,14 +170,14 @@ test('calendar all explicitly has NULL comparison while every legacy period omit
     async summary(...args) {
     calls.push(args);
     return { totalHours: '0', totalOrders: '0', comparison: null };
-  } }, () => new Date('2026-11-04T14:30:00Z'));
+  } }, () => new Date('2026-11-04T14:30:00Z'), { async get() { return { fuelPer100km: null, fuelPricePerL: null }; } });
   assert.equal((await service.summary(42, undefined, 'gross', { calendar: 'all' })).comparison, null);
-  assert.equal(calls[0][5], null);
+  assert.equal(calls[0][6], null);
   for (const period of ['week', 'month', 'three_months', 'all', 'current_week']) {
     const result = await service.summary(42, period);
     assert.equal(Object.hasOwn(result, 'comparison'), false);
     assert.equal(Object.hasOwn(result, 'availableRange'), false);
-    assert.equal(calls.at(-1).length, 4);
+    assert.equal(calls.at(-1).length, 5);
   }
   assert.equal(rangeReads, 1);
 });
@@ -193,7 +194,7 @@ test('calendar availableRange forwards dates and NULL from repository using the 
       const service = createAnalyticsService({
         async summary() { return row; },
         async availableRange(...args) { calls.push(args); return range; },
-      }, () => { clockReads++; return now; });
+      }, () => { clockReads++; return now; }, { async get() { return { fuelPer100km: null, fuelPricePerL: null }; } });
       const result = await service.summary(42, undefined, 'gross', { calendar, asOf,
         ...(calendar !== 'all' && { anchor: '2026-10-19' }) });
       assert.equal(clockReads, 1);

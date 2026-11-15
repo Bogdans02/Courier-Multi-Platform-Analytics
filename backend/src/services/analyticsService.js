@@ -21,21 +21,27 @@ function bestWeekdays(groups) {
 }
 
 export function createAnalyticsService(analytics, clock = () => new Date(), settings) {
-  async function earningsSettings(userId, value) {
+  // withFuel: tylko summary potrzebuje modelu paliwa (do waterfall). Szczegóły go nie używają,
+  // więc w trybie brutto nie czytają ustawień — zachowują dotychczasowe zachowanie.
+  async function earningsSettings(userId, value, withFuel = false) {
     const mode = validateEarningsMode(value);
-    if (mode === 'gross') return { mode, deductionRate: '0' };
-    const saved = await settings.get(userId);
+    if (mode === 'gross' && !withFuel) return { mode, deductionRate: '0' };
+    // Bez skonfigurowanego repozytorium ustawień traktujemy brak profilu i brak transportu (paliwo = 0).
+    const saved = settings ? await settings.get(userId) : {};
+    const fuel = { fuelPer100km: saved.fuelPer100km ?? null, fuelPricePerL: saved.fuelPricePerL ?? null };
+    if (mode === 'gross') return { mode, deductionRate: '0', ...fuel };
     if (!saved.netProfile || saved.deductionRate === null) {
       throw httpError(409, 'Najpierw zapisz profil w ustawieniach szacowanego netto.');
     }
-    return { mode, deductionRate: saved.deductionRate };
+    return { mode, deductionRate: saved.deductionRate, ...fuel };
   }
   return {
     async summary(userId, value, modeValue, calendarQuery = {}) {
       const { period, from, to, selection } = resolveAnalyticsWindow({ ...calendarQuery, period: value }, clock());
-      const { mode, deductionRate } = await earningsSettings(userId, modeValue);
+      const { mode, deductionRate, fuelPer100km, fuelPricePerL } = await earningsSettings(userId, modeValue, true);
       const previousWindow = resolvePreviousWindow(selection);
-      const row = await analytics.summary(userId, from, to, deductionRate, ...(selection ? [selection, previousWindow] : []));
+      const row = await analytics.summary(userId, from, to, deductionRate,
+        { fuelPer100km, fuelPricePerL }, ...(selection ? [selection, previousWindow] : []));
       const availableRange = selection ? await analytics.availableRange(userId, selection.asOf) : undefined;
       const { comparison, ...values } = row;
       return {
