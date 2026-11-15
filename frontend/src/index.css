@@ -306,6 +306,16 @@
 .earnings-hero-context { margin-top: 12px; }
 .metric-comparison { display: inline-flex; align-items: center; gap: 3px; font-size: .75rem; font-weight: 500; line-height: 1.35; letter-spacing: normal; color: var(--color-text-muted); }
 .metric-comparison svg { flex-shrink: 0; }
+
+/* Rozkład "na rękę": brutto, odejmowane kroki i wynik. Kwoty wyrównane do prawej. */
+.analytics-waterfall .waterfall-rows { margin-top: 12px; }
+.waterfall-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 7px 0; }
+.waterfall-row dt { color: var(--color-text-soft); font-size: .85rem; }
+.waterfall-row dd { font-variant-numeric: tabular-nums; font-weight: 600; overflow-wrap: anywhere; }
+.waterfall-deduction dt, .waterfall-deduction dd { color: var(--color-danger-text); }
+.waterfall-total { margin-top: 2px; padding-top: 12px; border-top: 1px solid var(--color-line); }
+.waterfall-total dt { color: var(--color-text); font-weight: 650; font-size: .95rem; }
+.waterfall-total dd { font-size: 1.15rem; font-weight: 750; }
 .metric-comparison[data-tone="up"] { color: #61e3b5; }
 .metric-comparison[data-tone="down"] { color: #fca5a5; }
 .analytics-chart-card { display: grid; gap: 8px; padding: 16px; }

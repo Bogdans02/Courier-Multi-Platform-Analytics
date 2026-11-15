@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { getSummary } from '../services/api/analytics.js';
 import DashboardSummary from '../components/DashboardSummary.jsx';
+import AnalyticsWaterfall from '../components/AnalyticsWaterfall.jsx';
 import IncompleteShiftsNotice from '../components/IncompleteShiftsNotice.jsx';
 import AdvancedAnalytics from '../components/AdvancedAnalytics.jsx';
 import AnalyticsPeriodSelector from '../components/AnalyticsPeriodSelector.jsx';
@@ -90,6 +91,7 @@ export default function Dashboard({ session, onSessionExpired }) {
         }}>Spróbuj ponownie</button>
       </div>}
       {statistics.status === 'success' && <DashboardSummary summary={statistics.summary} />}
+      {statistics.status === 'success' && <AnalyticsWaterfall summary={statistics.summary} />}
       {mode !== null && <AdvancedAnalytics token={session.token} selection={statistics.summary?.selection} mode={mode} onSessionExpired={onSessionExpired}
         summary={statistics.summary} showIncompleteWarning={statistics.status !== 'success'} />}
     </>

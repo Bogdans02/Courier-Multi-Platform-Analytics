@@ -137,7 +137,7 @@ export function createAnalyticsRepository(pool) {
           WHERE $7::timestamptz IS NOT NULL
         ), shift_totals AS (
           SELECT w.key, s.distance_km, EXTRACT(EPOCH FROM (s.ended_at - s.started_at)) / 3600 AS hours,
-            entries.earnings * (1 - $4::numeric) AS earnings, entries.orders,
+            entries.earnings AS gross, entries.earnings * (1 - $4::numeric) AS earnings, entries.orders,
             -- Koszt paliwa tylko gdy jest dystans i ustawienia transportu; inaczej 0.
             COALESCE(s.distance_km * $11::numeric * $12::numeric, 0) AS fuel_cost
           FROM windows w JOIN shifts s ON s.user_id = $1 AND s.status = 'completed'
@@ -152,6 +152,7 @@ export function createAnalyticsRepository(pool) {
           SELECT w.key, COUNT(*) FILTER (WHERE earnings IS NOT NULL)::integer AS shift_count,
             COUNT(*) FILTER (WHERE s.key IS NOT NULL AND earnings IS NULL)::integer AS incomplete_shift_count,
             COUNT(*) FILTER (WHERE earnings IS NOT NULL AND distance_km IS NOT NULL)::integer AS distance_shift_count,
+            COALESCE(SUM(gross), 0) AS gross,
             COALESCE(SUM(earnings), 0) AS earnings,
             COALESCE(SUM(orders), 0) AS orders,
             COALESCE(SUM(hours) FILTER (WHERE earnings IS NOT NULL), 0) AS hours,
@@ -193,6 +194,7 @@ export function createAnalyticsRepository(pool) {
           expense_totals.count AS "expenseCount", ROUND(expense_totals.amount, 2)::text AS "totalExpenses",
           distance_shift_count AS "distanceShiftCount",
           ROUND(earnings, 2)::text AS "totalEarnings", orders::text AS "totalOrders",
+          ROUND(gross, 2)::text AS "grossEarnings",
           ROUND(fuel_cost, 2)::text AS "fuelCost", ROUND(earnings - fuel_cost, 2)::text AS "takeHome",
           hours::text AS "totalHours", ROUND(distance, 2)::text AS "totalDistance",
           ROUND(earnings / NULLIF(shift_count, 0), 2)::text AS "earningsPerShift",

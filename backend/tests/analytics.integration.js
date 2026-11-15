@@ -963,11 +963,13 @@ test('fuel cost uses distance and transport settings, take-home subtracts it, an
     } });
   // paliwo = 10 km × 8/100 × 6 = 4.80; drugi shift bez dystansu nie dokłada paliwa.
   const gross = await service.summary(owner, 'month', 'gross');
+  assert.equal(gross.grossEarnings, '200.00');
   assert.equal(gross.totalEarnings, '200.00');
   assert.equal(gross.fuelCost, '4.80');
   assert.equal(gross.takeHome, '195.20');
-  // netto 20%: earnings = 160.00; take-home = 160 − 4.80 = 155.20.
+  // netto 20%: earnings = 160.00; brutto wciąż 200.00; take-home = 160 − 4.80 = 155.20.
   const net = await service.summary(owner, 'month', 'estimated_net');
+  assert.equal(net.grossEarnings, '200.00');
   assert.equal(net.totalEarnings, '160.00');
   assert.equal(net.fuelCost, '4.80');
   assert.equal(net.takeHome, '155.20');
