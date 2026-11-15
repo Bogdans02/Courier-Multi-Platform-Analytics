@@ -12,6 +12,46 @@ export const netProfiles = [
   { value: 'custom', label: 'Inny / własna stawka' },
 ];
 
+// Typy transportu. Rower i pieszo nie mają kosztu paliwa (fuel = false), więc krok paliwa = 0.
+export const transportTypes = [
+  { value: 'car', label: 'Samochód', fuel: true },
+  { value: 'scooter', label: 'Skuter', fuel: true },
+  { value: 'motorcycle', label: 'Motocykl', fuel: true },
+  { value: 'bike', label: 'Rower', fuel: false },
+  { value: 'foot', label: 'Pieszo', fuel: false },
+];
+
+// Liczba nieujemna z maks. tyloma miejscami po przecinku. Zwraca znormalizowany string albo rzuca błąd.
+function fuelNumber(value, maxDecimals, field) {
+  const pattern = new RegExp(`^\\d+(\\.\\d{1,${maxDecimals}})?$`);
+  if (!['string', 'number'].includes(typeof value) || !pattern.test(String(value)) || Number(value) < 0) {
+    throw httpError(400, `Podaj poprawną wartość pola: ${field}.`);
+  }
+  return Number(value).toFixed(maxDecimals);
+}
+
+// Transport jest opcjonalny. Brak typu = brak modelu paliwa (wszystkie pola null).
+// Pojazd spalinowy wymaga spalania i ceny; rower/pieszo nie przyjmują żadnego z nich.
+export function validateTransport(body) {
+  const type = body?.transportType ?? null;
+  if (type === null || type === '') {
+    return { transportType: null, fuelPer100km: null, fuelPricePerL: null };
+  }
+  const transport = transportTypes.find(({ value }) => value === type);
+  if (!transport) throw httpError(400, 'Wybierz poprawny typ transportu.');
+  if (!transport.fuel) {
+    if (body.fuelPer100km != null || body.fuelPricePerL != null) {
+      throw httpError(400, 'Ten środek transportu nie zużywa paliwa.');
+    }
+    return { transportType: type, fuelPer100km: null, fuelPricePerL: null };
+  }
+  return {
+    transportType: type,
+    fuelPer100km: fuelNumber(body.fuelPer100km, 2, 'spalanie (l/100 km)'),
+    fuelPricePerL: fuelNumber(body.fuelPricePerL, 3, 'cena paliwa (zł/l)'),
+  };
+}
+
 export function validateSettings(body) {
   const profile = netProfiles.find(({ value }) => value === body?.netProfile);
   if (!profile) throw httpError(400, 'Wybierz poprawny profil szacowanego netto.');

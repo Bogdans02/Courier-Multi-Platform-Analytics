@@ -1,12 +1,13 @@
-import { netProfiles, validateSettings } from '../validators/settingsValidator.js';
+import { netProfiles, transportTypes, validateSettings, validateTransport } from '../validators/settingsValidator.js';
 
 export function createSettingsService(settings) {
   return {
     async get(userId) {
-      return { settings: await settings.get(userId), profiles: netProfiles };
+      return { settings: await settings.get(userId), profiles: netProfiles, transportTypes };
     },
     async save(userId, body) {
-      return { settings: await settings.save(userId, validateSettings(body)), profiles: netProfiles };
+      const validated = { ...validateSettings(body), ...validateTransport(body) };
+      return { settings: await settings.save(userId, validated), profiles: netProfiles, transportTypes };
     },
   };
 }

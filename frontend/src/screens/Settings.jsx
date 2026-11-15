@@ -2,14 +2,18 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { getSettings, saveSettings } from '../services/api/settings.js';
 import BackLink from '../components/BackLink.jsx';
-import { settingsPayload, estimatedRate, formatRate } from '../utils/netSettings.js';
+import { settingsPayload, transportPayload, estimatedRate, formatRate } from '../utils/netSettings.js';
 
 export default function Settings({ session, onSessionExpired }) {
   const [status, setStatus] = useState('loading');
   const [profiles, setProfiles] = useState([]);
+  const [transportTypes, setTransportTypes] = useState([]);
   const [netProfile, setNetProfile] = useState('');
   const [ppkOptOut, setPpkOptOut] = useState(false);
   const [percent, setPercent] = useState('');
+  const [transportType, setTransportType] = useState('');
+  const [fuelPer100km, setFuelPer100km] = useState('');
+  const [fuelPricePerL, setFuelPricePerL] = useState('');
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [pending, setPending] = useState(false);
@@ -17,12 +21,16 @@ export default function Settings({ session, onSessionExpired }) {
 
   useEffect(() => {
     const controller = new AbortController();
-    getSettings(session.token, controller.signal).then(({ settings, profiles }) => {
+    getSettings(session.token, controller.signal).then(({ settings, profiles, transportTypes }) => {
       if (controller.signal.aborted) return;
       setProfiles(profiles);
+      setTransportTypes(transportTypes);
       setNetProfile(settings.netProfile ?? '');
       setPpkOptOut(settings.ppkOptOut ?? false);
       setPercent(settings.deductionRate === null ? '' : String(Number((Number(settings.deductionRate) * 100).toFixed(3))));
+      setTransportType(settings.transportType ?? '');
+      setFuelPer100km(settings.fuelPer100km == null ? '' : String(Number(settings.fuelPer100km)));
+      setFuelPricePerL(settings.fuelPricePerL == null ? '' : String(Number(settings.fuelPricePerL)));
       setStatus('success');
     }).catch((error) => {
       if (controller.signal.aborted) return;
@@ -37,7 +45,10 @@ export default function Settings({ session, onSessionExpired }) {
     setError('');
     setMessage('');
     let body;
-    try { body = settingsPayload(profiles, netProfile, ppkOptOut, percent); }
+    try {
+      body = { ...settingsPayload(profiles, netProfile, ppkOptOut, percent),
+        ...transportPayload(transportTypes, transportType, fuelPer100km, fuelPricePerL) };
+    }
     catch (error) { setError(error.message); return; }
     setPending(true);
     try {
@@ -51,6 +62,8 @@ export default function Settings({ session, onSessionExpired }) {
 
   const profile = profiles.find(({ value }) => value === netProfile);
   const rate = estimatedRate(profiles, netProfile, ppkOptOut, percent);
+  const transport = transportTypes.find(({ value }) => value === transportType);
+  const usesFuel = transport?.fuel;
   return <>
     <BackLink to="/more">Więcej</BackLink>
     <div className="page-heading"><h1>Ustawienia</h1></div>
@@ -81,6 +94,26 @@ export default function Settings({ session, onSessionExpired }) {
           <p id="custom-rate-help" className="text-sm">0–100%, maks. 3 miejsca po przecinku. Stawka końcowa, bez automatycznego doliczania PPK.</p>
         </>}
         <p>Szacowana stawka potrąceń: <strong>{rate === null ? 'Uzupełnij profil i stawkę' : formatRate(rate)}</strong></p>
+      </fieldset>
+      <fieldset disabled={pending} className="space-y-3 disabled:opacity-60" onChange={() => setMessage('')}>
+        <legend className="font-semibold">Transport i paliwo</legend>
+        <p className="muted text-sm">Służy do policzenia kosztu paliwa zmiany: km × spalanie/100 × cena. Rower i pieszo nie mają kosztu paliwa.</p>
+        <label htmlFor="transport-type" className="block">Środek transportu</label>
+        <select id="transport-type" value={transportType} className="form-input"
+          onChange={(event) => { setTransportType(event.target.value); setError(''); }}>
+          <option value="">Nie podano</option>
+          {transportTypes.map(({ value, label }) => <option value={value} key={value}>{label}</option>)}
+        </select>
+        {usesFuel && <>
+          <label htmlFor="fuel-per-100km" className="block">Spalanie (l/100 km)</label>
+          <input id="fuel-per-100km" inputMode="decimal" value={fuelPer100km}
+            onChange={(event) => { setFuelPer100km(event.target.value); setError(''); }} className="form-input" />
+          <label htmlFor="fuel-price" className="block">Cena paliwa (zł/l)</label>
+          <input id="fuel-price" inputMode="decimal" value={fuelPricePerL}
+            onChange={(event) => { setFuelPricePerL(event.target.value); setError(''); }} className="form-input" />
+        </>}
+      </fieldset>
+      <fieldset disabled={pending} className="disabled:opacity-60">
         <button type="submit" className="button-primary">
           {pending ? 'Zapisywanie...' : 'Zapisz ustawienia'}
         </button>

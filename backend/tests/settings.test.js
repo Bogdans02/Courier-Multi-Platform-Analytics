@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { validateSettings } from '../src/validators/settingsValidator.js';
+import { validateSettings, validateTransport, transportTypes } from '../src/validators/settingsValidator.js';
 
 test('accepted profiles derive their rates on the server and PPK affects only two profiles', () => {
   for (const [netProfile, withoutPpk, withPpk] of [
@@ -32,4 +32,28 @@ test('settings validate profile, explicit PPK choice and custom fractional rate 
       netProfile: 'custom', deductionRate: Number(deductionRate).toFixed(5), ppkOptOut: null,
     });
   }
+});
+
+test('transport defaults to no fuel model, needs both fuel params for vehicles and rejects fuel for bike/foot', () => {
+  const none = { transportType: null, fuelPer100km: null, fuelPricePerL: null };
+  // Brak typu = brak modelu paliwa.
+  for (const body of [undefined, {}, { transportType: '' }, { transportType: null }]) {
+    assert.deepEqual(validateTransport(body), none);
+  }
+  assert.throws(() => validateTransport({ transportType: 'plane' }), { status: 400 });
+  // Rower i pieszo: bez paliwa; podanie paliwa to błąd.
+  for (const transportType of ['bike', 'foot']) {
+    assert.deepEqual(validateTransport({ transportType }), { transportType, fuelPer100km: null, fuelPricePerL: null });
+    assert.throws(() => validateTransport({ transportType, fuelPer100km: '5' }), { status: 400 });
+    assert.throws(() => validateTransport({ transportType, fuelPricePerL: '6' }), { status: 400 });
+  }
+  // Pojazd spalinowy: oba parametry wymagane, nieujemne, z ograniczeniem miejsc po przecinku.
+  for (const bad of [{}, { fuelPer100km: '5' }, { fuelPricePerL: '6' },
+    { fuelPer100km: '-1', fuelPricePerL: '6' }, { fuelPer100km: '5.123', fuelPricePerL: '6' },
+    { fuelPer100km: '5', fuelPricePerL: '6.1234' }, { fuelPer100km: 'NaN', fuelPricePerL: '6' }]) {
+    assert.throws(() => validateTransport({ transportType: 'car', ...bad }), { status: 400 });
+  }
+  assert.deepEqual(validateTransport({ transportType: 'car', fuelPer100km: '7.5', fuelPricePerL: 6 }),
+    { transportType: 'car', fuelPer100km: '7.50', fuelPricePerL: '6.000' });
+  assert.equal(transportTypes.find(({ value }) => value === 'bike').fuel, false);
 });
