@@ -184,7 +184,10 @@ export function createAnalyticsRepository(pool) {
           FROM metric_values c JOIN metric_values p ON p.metric = c.metric AND p.window_key = 'previous'
           WHERE c.window_key = 'current'
         ), expense_totals AS (
-          SELECT COUNT(*)::integer AS count, COALESCE(SUM(amount), 0) AS amount FROM expenses
+          -- "other" pomija kategorię paliwa: paliwo liczymy automatycznie z km, więc
+          -- ręczny wydatek na paliwo nie może odjąć się drugi raz w waterfall "na rękę".
+          SELECT COUNT(*)::integer AS count, COALESCE(SUM(amount), 0) AS amount,
+            COALESCE(SUM(amount) FILTER (WHERE category <> 'fuel'), 0) AS other_amount FROM expenses
           WHERE user_id = $1
             AND ($2::timestamptz IS NULL OR expense_date >= ($2 AT TIME ZONE 'Europe/Warsaw')::date)
             AND expense_date <= ($3::timestamptz AT TIME ZONE 'Europe/Warsaw')::date
@@ -192,10 +195,12 @@ export function createAnalyticsRepository(pool) {
         )
         SELECT shift_count AS "shiftCount", incomplete_shift_count AS "incompleteShiftCount",
           expense_totals.count AS "expenseCount", ROUND(expense_totals.amount, 2)::text AS "totalExpenses",
+          ROUND(expense_totals.other_amount, 2)::text AS "otherExpenses",
           distance_shift_count AS "distanceShiftCount",
           ROUND(earnings, 2)::text AS "totalEarnings", orders::text AS "totalOrders",
           ROUND(gross, 2)::text AS "grossEarnings",
-          ROUND(fuel_cost, 2)::text AS "fuelCost", ROUND(earnings - fuel_cost, 2)::text AS "takeHome",
+          ROUND(fuel_cost, 2)::text AS "fuelCost",
+          ROUND(earnings - fuel_cost - expense_totals.other_amount, 2)::text AS "takeHome",
           hours::text AS "totalHours", ROUND(distance, 2)::text AS "totalDistance",
           ROUND(earnings / NULLIF(shift_count, 0), 2)::text AS "earningsPerShift",
           ROUND(earnings / NULLIF(hours, 0), 2)::text AS "earningsPerHour",

@@ -625,6 +625,7 @@ test('calendar summary and details share half-open Warsaw bounds, ownership and 
         }
       }
       assert.equal(s.totalExpenses, '2.00');
+      assert.equal(s.otherExpenses, '0.00'); // oba wydatki to paliwo, więc poza "other"
       assert.equal(s.expenseCount, 2);
       assert.deepEqual(d.trend.map((row) => row.key), [dateKey(startMs), dateKey(endMs - 1)]);
       assert.ok(d.trend.every((row) => row.totalEarnings === (mode === 'gross' ? '0.30' : '0.24')));
@@ -678,6 +679,7 @@ test('calendar current windows and all respect exact asOf, omit future work and 
     assert.equal(s.shiftCount, calendar === 'all' ? 3 : 2);
     assert.equal(d.shiftCount, s.shiftCount);
     assert.equal(s.totalExpenses, '1.00');
+    assert.equal(s.otherExpenses, '1.00'); // kategoria "phone" wchodzi do "other"
     assert.equal(s.totalEarnings, calendar === 'all' ? '300.00' : '200.00');
   }
   const first = (await request('/analytics/summary?calendar=all')).body.summary;
@@ -987,6 +989,16 @@ test('fuel cost uses distance and transport settings, take-home subtracts it, an
   const grossBike = await bike.summary(owner, 'month', 'gross');
   assert.equal(grossBike.fuelCost, '0.00');
   assert.equal(grossBike.takeHome, '200.00');
+
+  // Ręczne koszty: "phone" 30 zł wchodzi do otherExpenses i obniża take-home,
+  // ale ręczne "fuel" 50 zł NIE jest liczone drugi raz (paliwo już z km).
+  await pool.query(`INSERT INTO expenses (user_id, category, amount, expense_date)
+    VALUES ($1, 'phone', 30, '2026-11-18'), ($1, 'fuel', 50, '2026-11-18')`, [owner]);
+  const withCosts = await service.summary(owner, 'month', 'gross');
+  assert.equal(withCosts.totalExpenses, '80.00'); // wszystkie koszty razem
+  assert.equal(withCosts.otherExpenses, '30.00'); // bez kategorii paliwa
+  assert.equal(withCosts.fuelCost, '4.80'); // paliwo wciąż tylko z km
+  assert.equal(withCosts.takeHome, '165.20'); // 200 − 4.80 − 30
 });
 
 test('summary recalculates after editing entries, time, distance and period, and after deleting a shift', async () => {
