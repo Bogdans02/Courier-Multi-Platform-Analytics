@@ -1,7 +1,0 @@
-- generic [ref=e3]:
-  - link "Przejdź do treści" [ref=e4] [cursor=pointer]:
-    - /url: "#main-content"
-  - banner [ref=e5]:
-    - link "CourStat" [ref=e6] [cursor=pointer]:
-      - /url: /login
-  - main
