@@ -6,6 +6,16 @@ function toCents(value) {
   return value == null ? null : Math.round(Number(value) * 100);
 }
 
+// Koszt paliwa jednej zmiany: km × (spalanie/100) × cena. Taki sam wzór jak w SQL na backendzie.
+// Brak dystansu lub ustawień transportu (rower/pieszo też) = 0 zł, nie błąd.
+export function fuelCostOf(distanceKm, transport) {
+  const km = distanceKm == null ? 0 : Number(distanceKm);
+  const perKm = transport?.fuelPer100km == null ? null : Number(transport.fuelPer100km) / 100;
+  const price = transport?.fuelPricePerL == null ? null : Number(transport.fuelPricePerL);
+  if (km <= 0 || perKm == null || price == null) return 0;
+  return km * perKm * price;
+}
+
 export function waterfallSteps(summary) {
   const gross = toCents(summary?.grossEarnings);
   const net = toCents(summary?.totalEarnings);

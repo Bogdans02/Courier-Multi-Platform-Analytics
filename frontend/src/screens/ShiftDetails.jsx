@@ -6,6 +6,7 @@ import ShiftPlatformSummary from '../components/ShiftPlatformSummary.jsx';
 import ShiftCosts from '../components/ShiftCosts.jsx';
 import { getShift, updateShift } from '../services/api/shifts.js';
 import { getExpenses } from '../services/api/expenses.js';
+import { getSettings } from '../services/api/settings.js';
 import { formatCompactDuration, formatMoney } from '../utils/shiftFormat.js';
 import { formatDay, formatTimeRange } from '../utils/dateFormat.js';
 import { monthOf } from '../utils/historySummary.js';
@@ -30,6 +31,8 @@ export default function ShiftDetails({ session, onSessionExpired }) {
   const [reload, setReload] = useState(0);
   const [draft, setDraft] = useState(null);
   const [costs, setCosts] = useState({ status: 'loading', expenses: [], message: '' });
+  // Ustawienia transportu — do policzenia paliwa i "na rękę". Błąd nie blokuje zmiany: paliwo wtedy pomijamy.
+  const [transport, setTransport] = useState(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -61,6 +64,15 @@ export default function ShiftDetails({ session, onSessionExpired }) {
     return () => controller.abort();
   }, [session.token, id, onSessionExpired]);
 
+  // Ustawienia transportu czytamy osobno; przy błędzie zostaje null i paliwo jest pomijane.
+  useEffect(() => {
+    const controller = new AbortController();
+    getSettings(session.token, controller.signal)
+      .then(({ settings }) => { if (!controller.signal.aborted) setTransport(settings); })
+      .catch((error) => { if (!controller.signal.aborted && error.status === 401) onSessionExpired(); });
+    return () => controller.abort();
+  }, [session.token, onSessionExpired]);
+
   async function save(values) {
     try {
       const { shift: saved } = await updateShift(session.token, shift.id, withOrderEvents(values, draft));
@@ -88,7 +100,7 @@ export default function ShiftDetails({ session, onSessionExpired }) {
   }
 
   const complete = shift?.status === 'completed' && shift.platformEntries.length > 0;
-  const metrics = complete ? shiftMetrics(shift, costs.expenses) : null;
+  const metrics = complete ? shiftMetrics(shift, costs.expenses, transport) : null;
   // W podglądzie tytułem jest dzień zmiany; przy edycji dzień przechodzi do podtytułu.
   const editTitle = summaryMode ? 'Podsumowanie zmiany' : 'Edycja zmiany';
   const subtitle = shift && [...(editing ? [formatDay(shift.startedAt)] : []), ...(shift.status === 'active'
@@ -136,6 +148,12 @@ export default function ShiftDetails({ session, onSessionExpired }) {
                 <div><dt>na km</dt><dd>{metrics.perKm === null ? '—' : formatMoney(metrics.perKm)}</dd></div>
               </dl>
               {metrics.perKm === null && <p className="muted text-xs mt-2">Zł/km pojawi się po podaniu dystansu w edycji zmiany.</p>}
+              {/* Paliwo i "na rękę" tylko gdy jest co odjąć (dystans + ustawienia transportu). */}
+              {metrics.fuelCost > 0 && <dl className="detail-totals mt-3">
+                <div><dt>− Paliwo</dt><dd className="shift-fuel-cost">−{formatMoney(metrics.fuelCost)}</dd></div>
+                <div><dt>Na rękę ({metrics.label})</dt><dd>{formatMoney(metrics.takeHome)}</dd></div>
+                <div><dt>Na rękę na godzinę</dt><dd>{metrics.takeHomePerHour === null ? '—' : `${formatMoney(metrics.takeHomePerHour)}/h`}</dd></div>
+              </dl>}
             </section>
             <ShiftPlatformSummary shift={shift} />
           </>}

@@ -253,6 +253,7 @@
 .detail-totals > div { display: flex; justify-content: space-between; gap: 12px; padding-top: 10px; }
 .detail-totals dt { color: var(--color-text-soft); }
 .detail-totals dd { font-weight: 700; font-variant-numeric: tabular-nums; }
+.detail-totals .shift-fuel-cost { color: var(--color-danger-text); }
 .filter-chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
 .filter-chip { flex-shrink: 0; min-height: 44px; padding: 8px 14px; border: 1px solid var(--color-line-strong); background: var(--color-surface); color: var(--color-text-soft); font-size: .875rem; white-space: nowrap; }
 .filter-chip[aria-pressed="true"] { border-color: var(--color-text); background: var(--color-text); color: var(--color-on-accent); }

@@ -22,6 +22,21 @@ test('shift metrics divide the shift amount by hours, orders and kilometres', ()
   assert.equal(metrics.perKm.toFixed(2), '2.19');
   assert.equal(metrics.costs, 0);
   assert.equal(metrics.afterCosts, 154.6);
+  // Bez ustawień transportu paliwo = 0, a "na rękę" = kwota.
+  assert.equal(metrics.fuelCost, 0);
+  assert.equal(metrics.takeHome, 154.6);
+});
+
+test('fuel cost uses distance and transport settings, take-home subtracts it, and no distance means zero', () => {
+  // 70,5 km × 8/100 × 6 zł = 33,84 zł; na rękę = 154,60 − 33,84 = 120,76.
+  const car = shiftMetrics(shift, [], { fuelPer100km: '8.00', fuelPricePerL: '6.000' });
+  assert.equal(car.fuelCost, 33.84);
+  assert.equal(car.takeHome, 120.76);
+  assert.equal(car.takeHomePerHour.toFixed(2), '21.96');
+  // Rower / pieszo: parametry paliwa są puste, więc paliwo = 0.
+  assert.equal(shiftMetrics(shift, [], { fuelPer100km: null, fuelPricePerL: null }).fuelCost, 0);
+  // Bez dystansu paliwo = 0 nawet z ustawieniami transportu.
+  assert.equal(shiftMetrics({ ...shift, distanceKm: null }, [], { fuelPer100km: '8.00', fuelPricePerL: '6.000' }).fuelCost, 0);
 });
 
 test('missing distance, zero orders and zero duration give no ratio instead of a fake zero', () => {
