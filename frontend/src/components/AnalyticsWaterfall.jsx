@@ -2,7 +2,7 @@ import { Wallet } from 'lucide-react';
 import { formatMoney } from '../utils/shiftFormat.js';
 import { waterfallSteps } from '../utils/waterfall.js';
 
-// Rozkład "na rękę": od brutto odejmujemy podatek i paliwo. Pokazujemy tylko kroki,
+// Rozkład "na rękę": od brutto odejmujemy podatek, paliwo i inne koszty. Pokazujemy tylko kroki,
 // które coś odejmują — jeśli nic nie ma do odjęcia, karta się nie pojawia.
 export default function AnalyticsWaterfall({ summary }) {
   const steps = waterfallSteps(summary);
@@ -31,5 +31,7 @@ export default function AnalyticsWaterfall({ summary }) {
     </dl>
     {steps.deductions.some(step => step.key === 'fuel') && distance
       && <p className="muted text-xs">Paliwo policzone z dystansu zmian ({distance}) i ustawień transportu.</p>}
+    {steps.deductions.some(step => step.key === 'other')
+      && <p className="muted text-xs">„Inne koszty” to ręczne wydatki bez paliwa (paliwo już wyżej, z km).</p>}
   </section>;
 }
