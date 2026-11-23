@@ -65,12 +65,16 @@ test('sufficient coverage shows the day×hour heatmap with the hottest cell and 
   assert.match(markup, /role="region"[^>]*tabindex="0"/);
 });
 
-test('insufficient coverage keeps the simpler hourly chart instead of a sparse heatmap', () => {
+test('insufficient coverage shows a hint and no chart or heatmap, instead of a sparse view', () => {
   const sparse = heatmapFixture();
   sparse.coverage = { activeCells: 3, activeWeekdays: 2, sufficient: false };
   const markup = render(sparse);
   assert.doesNotMatch(markup, /Kiedy jest gorąco/);
-  assert.equal((markup.match(/<canvas /g) ?? []).length, 1); // wraca prosty widok godzinowy
+  assert.equal((markup.match(/<canvas /g) ?? []).length, 0);
+  assert.match(markup, /za mało danych, aby pokazać mapę godzin/);
+  // Sekcja i jej kontrolki zostają na miejscu także bez danych.
+  assert.match(markup, /Godziny/);
+  assert.match(markup, /Platforma zarejestrowanych dostaw/);
 });
 
 test('heatmap cells are accessible touch and keyboard controls, preselecting the hottest cell', () => {
@@ -110,68 +114,48 @@ test('hourly chart maps the 12 ready backend buckets and rates without dividing 
   assert.equal(data.values[5], 4); // The backend rate wins over 4 events / 3 rounded hours.
 });
 
-test('all platforms show one accessible hourly chart, the backend winner, a short source note and no quality counters', () => {
+test('without sufficient coverage the section still shows its selector and honest source note, but a hint instead of a chart', () => {
   const markup = render();
-  assert.equal((markup.match(/<canvas /g) ?? []).length, 1);
-  assert.match(markup, /Najaktywniejsza pora[\s\S]*10:00–12:00/);
-  assert.match(markup, /4 dostawy\/h/);
-  assert.match(markup, /role="region"[^>]*tabindex="0"/);
-  // Keep the honest one-line source note, but drop the legal paragraphs and sample counters.
+  // Mało danych (brak coverage) → podpowiedź, bez wykresu i bez rankingu „Najaktywniejsza pora”.
+  assert.equal((markup.match(/<canvas /g) ?? []).length, 0);
+  assert.match(markup, /za mało danych, aby pokazać mapę godzin/);
+  assert.doesNotMatch(markup, /Najaktywniejsza pora|Dostawy na godzinę/);
+  // Sekcja, selektor i jednowierszowa notka o źródle zostają zawsze.
+  assert.match(markup, /Godziny/);
+  assert.match(markup, /Platforma zarejestrowanych dostaw/);
   assert.match(markup, /ręcznie rejestrowanych dostaw/);
   assert.match(markup, /Nie potwierdza kompletności wszystkich dostaw/);
-  assert.doesNotMatch(markup, /Informacje o próbie|Kompletność rejestracji|Zmiany w próbie|Łącznie wykluczone|Przedziały i wartości/);
   assert.doesNotMatch(markup, /zł|Brutto|Szacowane netto|coverageStatus/);
 });
 
-test('backend ties retain all labels in order and all-zero/no-data rankings never invent a winner', () => {
-  const activity = fixture();
-  activity.bestIntervals.keys = ['3', '6'];
-  assert.match(render(activity), /06:00–08:00, 12:00–14:00/);
-  activity.bestIntervals = { status: 'all_zero', registeredOrdersPerHour: '0.00', keys: [] };
-  assert.match(render(activity), /Brak danych/);
-  assert.doesNotMatch(render(activity), /analytics-best-result/);
-  activity.bestIntervals = { status: 'no_data', registeredOrdersPerHour: null, keys: [] };
-  assert.match(render(activity), /Brak danych/);
-});
-
-test('each individual platform mode shows a counts chart only, with no platform ranking or hourly rate', () => {
+test('every platform filter stays available and shows the same hint until coverage is sufficient', () => {
   for (const platform of platforms) {
     const activity = fixture(platform.value);
-    activity.groups.forEach(group => { group.registeredOrders = 0; });
     const markup = render(activity);
     assert.match(markup, new RegExp(`value="${platform.value}" selected`));
-    assert.match(markup, /Liczba zarejestrowanych dostaw/);
-    assert.equal((markup.match(/<canvas /g) ?? []).length, 1);
-    assert.doesNotMatch(markup.replace(/<[^>]*>/g, ' '), /Najaktywniejsza pora|\/h|workHours|Czas pracy/);
-    assert.deepEqual(hourlyActivityChartData(activity).values, Array(12).fill(0));
+    assert.equal((markup.match(/<canvas /g) ?? []).length, 0);
+    assert.match(markup, /za mało danych, aby pokazać mapę godzin/);
+    assert.doesNotMatch(markup, /Kiedy jest gorąco|Najaktywniejsza pora/);
   }
 });
 
-test('empty cohorts, no events, overlap and invalid events have distinct empty reasons; unavailable metrics are not an observed zero', () => {
-  const messages = { no_completed_shifts: /Brak zakończonych i uzupełnionych zmian/,
-    no_events: /Brak zarejestrowanych dostaw w tym okresie/,
-    overlapping_shifts: /nakładają się w czasie i zostały pominięte/,
-    no_valid_events: /Brak zarejestrowanych dostaw mieszczących się w czasie zmian/ };
-  for (const [reason, pattern] of Object.entries(messages)) {
+test('empty cohorts still show the section with its hint and never a chart, regardless of the empty reason', () => {
+  for (const reason of ['no_completed_shifts', 'no_events', 'overlapping_shifts', 'no_valid_events']) {
     const activity = fixture();
     activity.status = 'no_data';
     activity.emptyReason = reason;
     activity.groups.forEach(group => { Object.assign(group, { status: 'no_data', registeredOrders: null, registeredOrdersPerHour: null, workHours: 0 }); });
-    activity.bestIntervals = { status: 'no_data', registeredOrdersPerHour: null, keys: [] };
     const markup = render(activity);
-    assert.match(markup, pattern);
+    assert.match(markup, /za mało danych, aby pokazać mapę godzin/);
     assert.doesNotMatch(markup, /<canvas /);
   }
-  const activity = fixture();
-  activity.groups.forEach(group => { group.registeredOrdersPerHour = null; });
-  assert.match(render(activity), /Brak danych/);
 });
 
 test('loading and error hide stale hourly data, while filter changes and retry use their supplied callbacks', () => {
   const activity = fixture();
   const loading = render(activity, { status: 'loading' });
   assert.match(loading, /role="status"[^>]*>Wczytywanie/);
-  assert.doesNotMatch(loading, /<canvas |Najaktywniejsza pora/);
+  assert.doesNotMatch(loading, /<canvas |Najaktywniejsza pora|za mało danych/);
   const error = render(activity, { status: 'error', message: 'Błąd godzin.' });
   assert.match(error, /role="alert">Błąd godzin/);
   assert.doesNotMatch(error, /<canvas /);

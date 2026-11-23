@@ -1,43 +1,15 @@
-import { Clock } from 'lucide-react';
-import AnalyticsChart from './AnalyticsChart.jsx';
 import AnalyticsHeatmap from './AnalyticsHeatmap.jsx';
 import { platforms } from '../utils/platformEntries.js';
-import { hourlyActivityChartData } from '../utils/analyticsFormat.js';
 
-const emptyReasons = {
-  no_completed_shifts: 'Brak zakończonych i uzupełnionych zmian w tym okresie.',
-  no_events: 'Brak zarejestrowanych dostaw w tym okresie.',
-  overlapping_shifts: 'Zmiany z rejestracją nakładają się w czasie i zostały pominięte.',
-  no_valid_events: 'Brak zarejestrowanych dostaw mieszczących się w czasie zmian.',
-};
-const number = value => Number(value).toLocaleString('pl-PL', { maximumFractionDigits: 2 });
-
+// Sekcja pokazuje mapę cieplną dzień×godzina tylko przy wystarczającym pokryciu danych.
+// Zanim się uzbiera — jedna podpowiedź, bez uproszczonego wykresu, żeby nie sugerować wyniku z paru dostaw.
 function ActivityResult({ activity }) {
-  const rate = activity.mode === 'rate';
-  const data = hourlyActivityChartData(activity);
-  const hasValues = data.values.some(value => value !== null);
-  const unit = rate ? 'dostawy/h' : 'zarejestrowane dostawy';
-  const label = rate ? 'Dostawy na godzinę' : 'Liczba zarejestrowanych dostaw';
-  const best = activity.bestIntervals;
-  // Mapa cieplna dzień×godzina tylko przy wystarczającym pokryciu danych — inaczej prostszy widok godzinowy.
   if (activity.status === 'available' && activity.coverage?.sufficient) return <AnalyticsHeatmap activity={activity} />;
-  return <>
-    {rate && <div className="card analytics-best-weekday">
-      <h3 className="analytics-chart-title flex items-center gap-2"><Clock size={18} aria-hidden="true" />Najaktywniejsza pora</h3>
-      {best.status === 'available' ? <div className="analytics-best-result">
-        <p>{best.keys.map(key => activity.groups.find(group => group.key === key).label).join(', ')}</p>
-        <p className="analytics-best-rate">{number(best.registeredOrdersPerHour)} dostawy/h</p>
-      </div> : <p className="muted text-sm">Brak danych</p>}
-    </div>}
-    <div className="card analytics-chart-card">
-      <h3 className="analytics-chart-title">{label}</h3>
-      {activity.status === 'no_data' ? <p className="muted py-4 text-sm">{emptyReasons[activity.emptyReason] ?? 'Brak danych godzinowych w tym okresie.'}</p>
-        : hasValues ? <div className="analytics-hourly-chart" role="region" aria-label="Wykres godzin — przewijany poziomo" tabIndex={0}>
-          <AnalyticsChart title={`Najlepsze godziny — ${label}, Europe/Warsaw`} type="bar" unit={unit} showAllLabels {...data} />
-        </div>
-        : <p className="muted py-4 text-sm">Brak danych</p>}
-    </div>
-  </>;
+  return <div className="card analytics-chart-card">
+    <p className="muted py-4 text-sm">
+      Na razie za mało danych, aby pokazać mapę godzin. Rejestruj dostawy w różne dni i godziny, a pojawi się tutaj.
+    </p>
+  </div>;
 }
 
 export default function AnalyticsHourlyActivity({ activity, status, message, eventPlatform, onEventPlatformChange, onRetry }) {
