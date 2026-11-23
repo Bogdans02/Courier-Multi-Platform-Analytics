@@ -6,6 +6,7 @@ import { formatDateTime } from '../utils/dateFormat.js';
 import PlatformBadge from '../components/PlatformBadge.jsx';
 import { Package, Play, Square } from 'lucide-react';
 import FloatingTrackingControl from '../components/FloatingTrackingControl.jsx';
+import GpsTrackingStatus from '../components/GpsTrackingStatus.jsx';
 import { floatingTracking } from '../services/floatingTracking.js';
 
 function timerText(seconds) {
@@ -47,12 +48,18 @@ export default function ActiveShift({ session, onSessionExpired }) {
     try {
       if (shift) {
         await floatingTracking.stopTracking();
+        await floatingTracking.stopGps();
         const { shift: completed } = await finishShift(session.token, shift.id);
         navigate(`/shifts/${completed.id}`, { state: { summary: true } });
       } else {
         const { shift: active } = await startShift(session.token);
         setShift(active);
         setNow(Date.now());
+        // GPS startuje razem ze zmianą tylko gdy jest zgoda; brak zgody nie blokuje zmiany — km wpisze się ręcznie.
+        try {
+          const { granted } = await floatingTracking.canUseLocation();
+          if (granted) await floatingTracking.startGps(session, active.id);
+        } catch { /* kilometraż zostanie ręczny */ }
       }
     } catch (error) {
       if (error.status === 401) onSessionExpired();
@@ -86,6 +93,7 @@ export default function ActiveShift({ session, onSessionExpired }) {
             {pending ? 'Proszę czekać...' : shift ? 'Zakończ zmianę' : 'Rozpocznij zmianę'}
           </button>
           </section>
+          {shift && <GpsTrackingStatus session={session} shiftId={shift.id} />}
           {shift && <FloatingTrackingControl session={session} shiftId={shift.id} disabled={pending} onBusyChange={setTrackingPending} />}
           {shift && <section className="card space-y-4">
             <h2 className="font-semibold">Bieżąca zmiana</h2>

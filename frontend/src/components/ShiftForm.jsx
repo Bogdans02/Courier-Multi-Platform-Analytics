@@ -3,11 +3,15 @@ import { formatMoney, toLocalDateTime } from '../utils/shiftFormat.js';
 import { shiftFormPayload, validateShiftForm } from '../utils/shiftValidation.js';
 import { platforms, platformTotals } from '../utils/platformEntries.js';
 
-export default function ShiftForm({ shift, initialEntries, onSubmit, onCancel }) {
+export default function ShiftForm({ shift, initialEntries, gpsDistance = null, onSubmit, onCancel }) {
+  // GPS podpowiada dystans tylko gdy zmiana nie ma jeszcze zapisanego km. Pole zostaje
+  // w pełni ręczne: po edycji wartości źródło wraca na "manual", tak jak przy wpisaniu od zera.
+  const gpsSeed = shift.distanceKm === null && gpsDistance?.km != null;
   const [values, setValues] = useState({
     startedAt: toLocalDateTime(shift.startedAt),
     endedAt: toLocalDateTime(shift.endedAt),
-    distanceKm: shift.distanceKm ?? '',
+    distanceKm: shift.distanceKm ?? (gpsSeed ? gpsDistance.km : ''),
+    distanceSource: shift.distanceKm !== null ? (shift.distanceSource ?? 'manual') : (gpsSeed ? 'gps' : 'manual'),
     platformEntries: shift.platformEntries.length ? shift.platformEntries.map((entry) => ({
       platform: entry.platform, earningsGross: entry.earningsGross, ordersCount: String(entry.ordersCount),
     })) : initialEntries?.length ? initialEntries : [{ platform: 'glovo', earningsGross: '', ordersCount: '' }],
@@ -18,6 +22,11 @@ export default function ShiftForm({ shift, initialEntries, onSubmit, onCancel })
 
   function change(event) {
     setValues({ ...values, [event.target.name]: event.target.value });
+  }
+
+  // Ręczna zmiana dystansu odbiera mu znacznik GPS — liczy się to, co kurier widzi w polu.
+  function changeDistance(event) {
+    setValues({ ...values, distanceKm: event.target.value, distanceSource: 'manual' });
   }
 
   function changeEntry(index, field, value) {
@@ -69,8 +78,9 @@ export default function ShiftForm({ shift, initialEntries, onSubmit, onCancel })
         <div>
           <label htmlFor="distanceKm" className="mb-1 block font-medium">Dystans (km, opcjonalnie)</label>
           <input id="distanceKm" name="distanceKm" type="number" inputMode="decimal" min="0" max="99999999.99" step="0.01"
-            value={values.distanceKm} onChange={change}
+            value={values.distanceKm} onChange={changeDistance}
             className="form-input" />
+          {values.distanceSource === 'gps' && values.distanceKm !== '' && <p className="muted text-xs mt-1">Zmierzone przez GPS — możesz poprawić.</p>}
         </div>
         {values.platformEntries.map((entry, index) => (
           <fieldset key={index} className="space-y-3 rounded-ui border border-line p-3">

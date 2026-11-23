@@ -34,10 +34,13 @@ export function validateShiftForm({ startedAt, endedAt, distanceKm, platformEntr
 }
 
 export function shiftFormPayload(values, original = {}) {
+  const distanceKm = values.distanceKm === '' ? null : values.distanceKm;
   return {
     startedAt: exactTime(values.startedAt, original.startedAt),
     endedAt: exactTime(values.endedAt, original.endedAt),
-    distanceKm: values.distanceKm === '' ? null : values.distanceKm,
+    distanceKm,
+    // Bez dystansu źródło nie ma znaczenia; z dystansem przekazujemy GPS lub ręczne.
+    distanceSource: distanceKm === null ? null : (values.distanceSource === 'gps' ? 'gps' : 'manual'),
     platformEntries: values.platformEntries.map(({ platform, earningsGross, ordersCount }) => ({
       platform, earningsGross, ordersCount: Number(ordersCount),
     })),

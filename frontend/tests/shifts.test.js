@@ -13,6 +13,11 @@ test('shift form validates time order and distance and converts local dates to U
   assert.equal(shiftFormPayload(valid).distanceKm, null);
   assert.equal(shiftFormPayload({ ...valid, distanceKm: '0' }).distanceKm, '0');
   assert.equal(shiftFormPayload({ ...valid, distanceKm: '64.50' }).distanceKm, '64.50');
+  // Źródło dystansu: puste bez km, ręczne domyślnie, GPS tylko gdy pole nie zostało zmienione ręcznie.
+  assert.equal(shiftFormPayload(valid).distanceSource, null);
+  assert.equal(shiftFormPayload({ ...valid, distanceKm: '64.50' }).distanceSource, 'manual');
+  assert.equal(shiftFormPayload({ ...valid, distanceKm: '64.50', distanceSource: 'gps' }).distanceSource, 'gps');
+  assert.equal(shiftFormPayload({ ...valid, distanceKm: '', distanceSource: 'gps' }).distanceSource, null);
   for (const values of [{ ...valid, startedAt: '' }, { ...valid, endedAt: valid.startedAt },
     ...['-1', 'abc', '1.234', '100000000'].map((distanceKm) => ({ ...valid, distanceKm }))]) {
     assert.notEqual(validateShiftForm(values), '');

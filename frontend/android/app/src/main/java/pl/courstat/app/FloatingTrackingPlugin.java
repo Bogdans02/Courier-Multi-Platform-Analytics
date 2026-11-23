@@ -17,11 +17,14 @@ import com.getcapacitor.annotation.Permission;
 import com.getcapacitor.annotation.PermissionCallback;
 
 @CapacitorPlugin(name = "FloatingTracking", permissions = {
-    @Permission(alias = "notifications", strings = { Manifest.permission.POST_NOTIFICATIONS })
+    @Permission(alias = "notifications", strings = { Manifest.permission.POST_NOTIFICATIONS }),
+    @Permission(alias = "location", strings = {
+        Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION })
 })
 public class FloatingTrackingPlugin extends Plugin {
     private boolean visible;
     private PluginCall pendingStart;
+    private PluginCall pendingGps;
 
     @Override protected void handleOnResume() {
         visible = true;
@@ -29,6 +32,11 @@ public class FloatingTrackingPlugin extends Plugin {
             PluginCall call = pendingStart;
             pendingStart = null;
             launch(call);
+        }
+        if (pendingGps != null) {
+            PluginCall call = pendingGps;
+            pendingGps = null;
+            launchGps(call);
         }
     }
     @Override protected void handleOnPause() { visible = false; }
@@ -69,7 +77,7 @@ public class FloatingTrackingPlugin extends Plugin {
                 call.reject("Uruchom licznik w widocznej aplikacji, z ważną sesją i zgodą na nakładkę.");
                 return;
             }
-            FloatingTrackingService.launch(getContext(), userId, shiftId, expiresAt,
+            FloatingTrackingService.launchOverlay(getContext(), userId, shiftId, expiresAt,
                 () -> call.resolve(new JSObject().put("active", true)
                     .put("notificationsGranted", NotificationManagerCompat.from(getContext()).areNotificationsEnabled())),
                 message -> call.reject(message));
@@ -82,8 +90,81 @@ public class FloatingTrackingPlugin extends Plugin {
                 pendingStart.reject("Uruchomienie licznika anulowane.");
                 pendingStart = null;
             }
-            FloatingTrackingService.stop(getContext());
+            FloatingTrackingService.stopOverlay(getContext());
             call.resolve();
+        });
+    }
+
+    // ---- GPS kilometrażu zmiany -----------------------------------------------
+
+    @PluginMethod public void canUseLocation(PluginCall call) {
+        call.resolve(new JSObject().put("granted", getPermissionState("location") == PermissionState.GRANTED));
+    }
+
+    @PluginMethod public void startGps(PluginCall call) {
+        if (getPermissionState("location") != PermissionState.GRANTED) {
+            requestPermissionForAlias("location", call, "afterLocation");
+        } else launchGps(call);
+    }
+
+    @PermissionCallback private void afterLocation(PluginCall call) {
+        if (getPermissionState("location") != PermissionState.GRANTED) {
+            call.reject("Brak zgody na lokalizację. Kilometry wpiszesz ręcznie.");
+            return;
+        }
+        // Wynik zgody może wrócić przed onResume — dokończ start dopiero gdy aplikacja jest widoczna.
+        if (visible) launchGps(call);
+        else pendingGps = call;
+    }
+
+    private void launchGps(PluginCall call) {
+        getActivity().runOnUiThread(() -> {
+            Integer userId = call.getInt("userId"), shiftId = call.getInt("shiftId");
+            Long expiresAt = call.getLong("expiresAt");
+            if (getPermissionState("location") != PermissionState.GRANTED || userId == null || shiftId == null
+                || userId <= 0 || shiftId <= 0 || expiresAt == null || expiresAt <= System.currentTimeMillis()) {
+                call.reject("Uruchom GPS z ważną sesją i zgodą na lokalizację.");
+                return;
+            }
+            FloatingTrackingService.launchGps(getContext(), userId, shiftId, expiresAt,
+                () -> call.resolve(new JSObject().put("active", true)),
+                message -> call.reject(message));
+        });
+    }
+
+    @PluginMethod public void stopGps(PluginCall call) {
+        getActivity().runOnUiThread(() -> {
+            if (pendingGps != null) {
+                pendingGps.reject("Uruchomienie GPS anulowane.");
+                pendingGps = null;
+            }
+            FloatingTrackingService.stopGps(getContext());
+            call.resolve();
+        });
+    }
+
+    @PluginMethod public void getDistance(PluginCall call) {
+        getActivity().runOnUiThread(() -> {
+            try {
+                Integer userId = call.getInt("userId"), shiftId = call.getInt("shiftId");
+                if (userId == null || shiftId == null) { call.reject("Brak konta lub zmiany."); return; }
+                DistanceTracker tracker = new DistanceTracker(getContext(), userId, shiftId);
+                call.resolve(new JSObject().put("meters", tracker.meters()).put("hadFix", tracker.hadFix())
+                    .put("active", FloatingTrackingService.isTrackingGps(userId, shiftId)));
+            } catch (Exception e) { call.reject("Nie udało się odczytać dystansu GPS.", e); }
+        });
+    }
+
+    @PluginMethod public void clearDistance(PluginCall call) {
+        getActivity().runOnUiThread(() -> {
+            try {
+                Integer userId = call.getInt("userId"), shiftId = call.getInt("shiftId");
+                if (userId == null || shiftId == null || FloatingTrackingService.isTrackingGps(userId, shiftId)) {
+                    call.reject("Nie można usunąć aktywnego dystansu."); return;
+                }
+                new DistanceTracker(getContext(), userId, shiftId).clear();
+                call.resolve();
+            } catch (Exception e) { call.reject("Nie udało się usunąć dystansu GPS.", e); }
         });
     }
 

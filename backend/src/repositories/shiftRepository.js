@@ -57,16 +57,16 @@ export function createShiftRepository(pool) {
       );
       return rows[0];
     },
-    async update(userId, id, { startedAt, endedAt, distanceKm, platformEntries, orderEvents }) {
+    async update(userId, id, { startedAt, endedAt, distanceKm, distanceSource, platformEntries, orderEvents }) {
       const client = await pool.connect();
       try {
         await client.query('BEGIN');
         const { rows: [shift] } = await client.query(
           `UPDATE shifts SET started_at = $3, ended_at = $4, distance_km = $5,
-           distance_source = CASE WHEN $5::numeric IS NULL THEN NULL ELSE 'manual' END,
+           distance_source = CASE WHEN $5::numeric IS NULL THEN NULL ELSE $6 END,
            updated_at = clock_timestamp()
            WHERE user_id = $1 AND id = $2 AND status = 'completed' RETURNING ${columns}`,
-          [userId, id, startedAt, endedAt, distanceKm],
+          [userId, id, startedAt, endedAt, distanceKm, distanceSource],
         );
         if (shift) {
           await client.query('DELETE FROM shift_platform_entries WHERE shift_id = $1', [id]);

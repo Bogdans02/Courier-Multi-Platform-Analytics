@@ -33,6 +33,19 @@ test('shift update validates time order and preserves optional manual distance',
   }
 });
 
+test('distance source defaults to manual, keeps gps when sent, and stays null without distance', () => {
+  // Bez dystansu źródło zawsze jest puste, niezależnie od przysłanego pola.
+  assert.equal(validateShiftUpdate(valid).distanceSource, null);
+  assert.equal(validateShiftUpdate({ ...valid, distanceSource: 'gps' }).distanceSource, null);
+  // Z dystansem: domyślnie ręczne, a GPS tylko gdy klient poda je jawnie.
+  assert.equal(validateShiftUpdate({ ...valid, distanceKm: '12.00' }).distanceSource, 'manual');
+  assert.equal(validateShiftUpdate({ ...valid, distanceKm: '12.00', distanceSource: 'gps' }).distanceSource, 'gps');
+  assert.equal(validateShiftUpdate({ ...valid, distanceKm: '12.00', distanceSource: 'manual' }).distanceSource, 'manual');
+  for (const distanceSource of ['auto', '', 'GPS', 0, true]) {
+    assert.throws(() => validateShiftUpdate({ ...valid, distanceKm: '12.00', distanceSource }), { status: 400 });
+  }
+});
+
 test('history month accepts only YYYY-MM and is optional', () => {
   assert.equal(validateMonth(undefined), null);
   assert.equal(validateMonth('2026-11'), '2026-11');

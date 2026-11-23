@@ -28,6 +28,22 @@ export function createFloatingTracking({ platform = Capacitor, native = plugin }
     async clearTrackingDraft(userId, shiftId) {
       if (available) await native.clearTrackingDraft({ userId, shiftId });
     },
+    // GPS kilometrażu zmiany — osobne od licznika zamówień, startuje razem ze zmianą.
+    async canUseLocation() { return available ? native.canUseLocation() : { granted: false }; },
+    async startGps(session, shiftId) {
+      if (!available) return { active: false };
+      return native.startGps({ userId: session.user.id, shiftId, expiresAt: sessionExpiry(session.token) });
+    },
+    async stopGps() { if (available) await native.stopGps(); },
+    async getGpsDistance(userId, shiftId) {
+      if (!available) return { available: false, km: null, hadFix: false, active: false };
+      const { meters, hadFix, active } = await native.getDistance({ userId, shiftId });
+      // Metry z Haversine → kilometry z dwoma miejscami, dokładnie jak przyjmuje pole dystansu.
+      return { available: true, km: hadFix ? (meters / 1000).toFixed(2) : null, hadFix, active };
+    },
+    async clearGpsDistance(userId, shiftId) {
+      if (available) await native.clearDistance({ userId, shiftId });
+    },
   };
 }
 

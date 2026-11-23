@@ -67,9 +67,14 @@ export function validateShiftUpdate(body) {
     }
     distanceKm = String(distanceKm);
   }
+  // Bez dystansu nie ma źródła. Z dystansem domyślnie 'manual' — GPS musi podać źródło jawnie.
+  let distanceSource = distanceKm === null ? null : (body.distanceSource ?? 'manual');
+  if (distanceSource !== null && distanceSource !== 'manual' && distanceSource !== 'gps') {
+    throw httpError(400, 'Źródło dystansu musi być ręczne albo z GPS.');
+  }
   const platformEntries = validatePlatformEntries(body.platformEntries);
   const orderEvents = body.orderEvents === undefined ? undefined : validateOrderEvents(body.orderEvents);
-  return { startedAt, endedAt, distanceKm, platformEntries, orderEvents };
+  return { startedAt, endedAt, distanceKm, distanceSource, platformEntries, orderEvents };
 }
 
 export function validateOrderEvents(events) {

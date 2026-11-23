@@ -161,11 +161,14 @@ test('finish records server end time and duration, persists without distance, an
   assert.equal((await request('/start', { method: 'POST' })).status, 201);
 });
 
-test('editing times recalculates duration and sets, zeroes or clears optional manual distance', async () => {
+test('editing times recalculates duration and sets, zeroes or clears optional distance with its source', async () => {
   const shift = await completedShift();
-  for (const [distanceKm, expected, source] of [['64.50', '64.50', 'manual'], [0, '0.00', 'manual'], [null, null, null]]) {
+  // Źródło idzie za tym, co przyśle klient: domyślnie ręczne, GPS jawnie, a bez dystansu zawsze puste.
+  for (const [distanceKm, distanceSource, expected, source] of [
+    ['64.50', undefined, '64.50', 'manual'], ['80.00', 'gps', '80.00', 'gps'],
+    [0, 'manual', '0.00', 'manual'], [null, 'gps', null, null]]) {
     const result = await request(`/${shift.id}`, {
-      method: 'PUT', body: { ...times, distanceKm, distanceSource: 'gps', user_id: secondUser, status: 'active' },
+      method: 'PUT', body: { ...times, distanceKm, distanceSource, user_id: secondUser, status: 'active' },
     });
     assert.equal(result.status, 200);
     assert.equal(result.body.shift.durationSeconds, 9000);
@@ -321,7 +324,7 @@ test('a failed entry insert rolls back both the shift update and replacement of 
   // Bypass API validation to verify the transaction when PostgreSQL rejects an insert.
   await assert.rejects(createShiftRepository(pool).update(firstUser, shift.id, {
     startedAt: new Date(times.startedAt), endedAt: new Date('2026-10-10T12:00:00.000Z'),
-    distanceKm: '25', platformEntries: [entry, entry],
+    distanceKm: '25', distanceSource: 'manual', platformEntries: [entry, entry],
   }), { code: '23505' });
   assert.deepEqual((await request(`/${shift.id}`)).body.shift, saved);
 });

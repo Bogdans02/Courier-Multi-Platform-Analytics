@@ -30,6 +30,8 @@ export default function ShiftDetails({ session, onSessionExpired }) {
   const [pending, setPending] = useState(false);
   const [reload, setReload] = useState(0);
   const [draft, setDraft] = useState(null);
+  // Dystans z GPS tej zmiany — podpowiedź do pola km, czytana przy wejściu w podsumowanie.
+  const [gpsDistance, setGpsDistance] = useState(null);
   const [costs, setCosts] = useState({ status: 'loading', expenses: [], message: '' });
   // Ustawienia transportu — do policzenia paliwa i "na rękę". Błąd nie blokuje zmiany: paliwo wtedy pomijamy.
   const [transport, setTransport] = useState(null);
@@ -39,8 +41,13 @@ export default function ShiftDetails({ session, onSessionExpired }) {
     getShift(session.token, id, controller.signal)
       .then(async ({ shift }) => {
         const local = await floatingTracking.getTrackingState(session.user.id, shift.id);
+        // GPS czytamy tylko gdy zmiana nie ma jeszcze zapisanego km — inaczej nie nadpisujemy wpisu kuriera.
+        const gps = shift.distanceKm === null
+          ? await floatingTracking.getGpsDistance(session.user.id, shift.id).catch(() => null)
+          : null;
         if (controller.signal.aborted) return;
         setDraft(local);
+        setGpsDistance(gps);
         setShift(shift); setError(''); setLoading(false);
       })
       .catch((error) => {
@@ -77,6 +84,7 @@ export default function ShiftDetails({ session, onSessionExpired }) {
     try {
       const { shift: saved } = await updateShift(session.token, shift.id, withOrderEvents(values, draft));
       await floatingTracking.clearTrackingDraft(session.user.id, shift.id);
+      await floatingTracking.clearGpsDistance(session.user.id, shift.id).catch(() => {});
       navigate(historyFor(saved.startedAt), { state: { message: 'Zmiana została zapisana.' } });
     } catch (error) {
       if (error.status === 401) onSessionExpired();
@@ -88,7 +96,7 @@ export default function ShiftDetails({ session, onSessionExpired }) {
     setPending(true);
     setError('');
     try {
-      if (shift.status === 'active') await floatingTracking.stopTracking();
+      if (shift.status === 'active') { await floatingTracking.stopTracking(); await floatingTracking.stopGps(); }
       await deleteShiftWithDraft(session, shift.id);
       navigate(historyFor(shift.startedAt), { state: { message: 'Zmiana została usunięta.' } });
     } catch (error) {
@@ -123,7 +131,7 @@ export default function ShiftDetails({ session, onSessionExpired }) {
 
         {editing && shift.status === 'completed' ? (
           // Edycja zastępuje podgląd, żeby te same dane nie były na ekranie dwa razy.
-          <ShiftForm key={shift.id} shift={shift} initialEntries={!shift.platformEntries.length && draft?.hasDraft
+          <ShiftForm key={shift.id} shift={shift} gpsDistance={gpsDistance} initialEntries={!shift.platformEntries.length && draft?.hasDraft
             ? entriesFromOrderEvents(draft.orderEvents) : undefined} onSubmit={save} onCancel={() => setEditing(false)} />
         ) : <>
           {shift.status === 'active' && <section className="card space-y-3">
