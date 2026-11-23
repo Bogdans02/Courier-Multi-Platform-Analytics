@@ -24,7 +24,7 @@ export function createAuthService(users, jwtSecret) {
         throw httpError(401, 'Niepoprawny e-mail lub hasło.');
       }
       const token = jwt.sign({}, jwtSecret, {
-        algorithm: 'HS256', subject: String(user.id), expiresIn: '1h',
+        algorithm: 'HS256', subject: String(user.id), expiresIn: '30d',
       });
       return { token, user: { id: user.id, email: user.email } };
     },

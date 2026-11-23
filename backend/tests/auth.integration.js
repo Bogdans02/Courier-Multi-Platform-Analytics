@@ -113,7 +113,7 @@ test('login returns a signed expiring JWT and never returns the password hash', 
   firstToken = result.body.token;
   const payload = jwt.verify(firstToken, secret, { algorithms: ['HS256'] });
   assert.equal(payload.sub, String(firstUser.id));
-  assert.equal(payload.exp - payload.iat, 3600);
+  assert.equal(payload.exp - payload.iat, 30 * 24 * 3600);
   assert.deepEqual(Object.keys(result.body).sort(), ['token', 'user']);
 });
 
