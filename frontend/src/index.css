@@ -184,6 +184,15 @@
 .today-stats dt { display: flex; align-items: center; gap: 6px; color: var(--color-text-muted); font-size: .78rem; }
 .today-stats dt svg { flex-shrink: 0; color: var(--color-text-soft); }
 .today-stats dd { margin-top: 4px; font-size: 1.15rem; font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.daily-goal { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--color-line); }
+.daily-goal-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.daily-goal-label { color: var(--color-text-muted); font-size: .78rem; }
+.daily-goal-amount { font-size: .9rem; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--color-text-soft); }
+.daily-goal-bar { margin-top: 8px; height: 8px; border-radius: 999px; background: var(--color-field); border: 1px solid var(--color-line); overflow: hidden; }
+/* Przygaszony złoty — tematycznie „pieniądze”, ciemniejszy i mniej jaskrawy niż żółty przycisk startu. */
+.daily-goal-fill { height: 100%; border-radius: 999px; background: #b4821f; transition: width .3s ease; }
+.daily-goal-fill.is-reached { background: var(--color-success); }
+.daily-goal-reached { margin-top: 6px; font-size: .8rem; font-weight: 600; }
 .mode-badge { display: inline-flex; align-items: center; padding: 4px 9px; border: 1px solid var(--color-line-strong); border-radius: var(--radius-ui); color: var(--color-text-soft); font-size: .75rem; }
 .card-footer-link { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 44px; border-top: 1px solid var(--color-line); color: var(--color-link); font-size: .75rem; }
 .card-footer-link svg { width: 14px; height: 14px; }

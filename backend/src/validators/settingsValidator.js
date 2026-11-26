@@ -52,6 +52,13 @@ export function validateTransport(body) {
   };
 }
 
+// Cel dzienny jest opcjonalny. Brak (null/'') = cel nie ustawiony; inaczej liczba nieujemna z groszami.
+export function validateDailyGoal(body) {
+  const goal = body?.dailyGoal;
+  if (goal === null || goal === undefined || goal === '') return { dailyGoal: null };
+  return { dailyGoal: fuelNumber(goal, 2, 'cel dzienny (zł)') };
+}
+
 export function validateSettings(body) {
   const profile = netProfiles.find(({ value }) => value === body?.netProfile);
   if (!profile) throw httpError(400, 'Wybierz poprawny profil szacowanego netto.');

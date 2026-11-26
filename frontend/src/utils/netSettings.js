@@ -34,6 +34,12 @@ function fuelNumber(value, maxDecimals, field) {
   return Number(text).toFixed(maxDecimals);
 }
 
+// Cel dzienny jest opcjonalny: puste pole = brak celu (null), inaczej liczba nieujemna z groszami.
+export function dailyGoalPayload(dailyGoal) {
+  if (String(dailyGoal).trim() === '') return { dailyGoal: null };
+  return { dailyGoal: fuelNumber(dailyGoal, 2, 'cel dzienny (zł)') };
+}
+
 // Część transportowa ustawień. Brak typu = brak modelu paliwa. Rower/pieszo nie mają paliwa.
 export function transportPayload(types, transportType, fuelPer100km, fuelPricePerL) {
   if (!transportType) return { transportType: null, fuelPer100km: null, fuelPricePerL: null };

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { getSettings, saveSettings } from '../services/api/settings.js';
 import BackLink from '../components/BackLink.jsx';
-import { settingsPayload, transportPayload, estimatedRate, formatRate } from '../utils/netSettings.js';
+import { settingsPayload, transportPayload, dailyGoalPayload, estimatedRate, formatRate } from '../utils/netSettings.js';
 
 export default function Settings({ session, onSessionExpired }) {
   const [status, setStatus] = useState('loading');
@@ -14,6 +14,7 @@ export default function Settings({ session, onSessionExpired }) {
   const [transportType, setTransportType] = useState('');
   const [fuelPer100km, setFuelPer100km] = useState('');
   const [fuelPricePerL, setFuelPricePerL] = useState('');
+  const [dailyGoal, setDailyGoal] = useState('');
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [pending, setPending] = useState(false);
@@ -31,6 +32,7 @@ export default function Settings({ session, onSessionExpired }) {
       setTransportType(settings.transportType ?? '');
       setFuelPer100km(settings.fuelPer100km == null ? '' : String(Number(settings.fuelPer100km)));
       setFuelPricePerL(settings.fuelPricePerL == null ? '' : String(Number(settings.fuelPricePerL)));
+      setDailyGoal(settings.dailyGoal == null ? '' : String(Number(settings.dailyGoal)));
       setStatus('success');
     }).catch((error) => {
       if (controller.signal.aborted) return;
@@ -47,7 +49,8 @@ export default function Settings({ session, onSessionExpired }) {
     let body;
     try {
       body = { ...settingsPayload(profiles, netProfile, ppkOptOut, percent),
-        ...transportPayload(transportTypes, transportType, fuelPer100km, fuelPricePerL) };
+        ...transportPayload(transportTypes, transportType, fuelPer100km, fuelPricePerL),
+        ...dailyGoalPayload(dailyGoal) };
     }
     catch (error) { setError(error.message); return; }
     setPending(true);
@@ -112,6 +115,13 @@ export default function Settings({ session, onSessionExpired }) {
           <input id="fuel-price" inputMode="decimal" value={fuelPricePerL}
             onChange={(event) => { setFuelPricePerL(event.target.value); setError(''); }} className="form-input" />
         </>}
+      </fieldset>
+      <fieldset disabled={pending} className="space-y-3 disabled:opacity-60" onChange={() => setMessage('')}>
+        <legend className="font-semibold">Cel dzienny</legend>
+        <p className="muted text-sm">Dzienny cel zarobku w zł. Postęp zobaczysz na ekranie „Dziś”. Zostaw puste, aby nie pokazywać celu.</p>
+        <label htmlFor="daily-goal" className="block">Cel dzienny (zł)</label>
+        <input id="daily-goal" inputMode="decimal" type="number" min="0" step="0.01" value={dailyGoal}
+          onChange={(event) => { setDailyGoal(event.target.value); setError(''); }} className="form-input" />
       </fieldset>
       <fieldset disabled={pending} className="disabled:opacity-60">
         <button type="submit" className="button-primary">

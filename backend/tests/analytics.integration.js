@@ -714,7 +714,7 @@ test('settings start unconfigured, require authorization and isolate reads and w
   assert.equal(empty.status, 200);
   assert.equal(empty.cache, 'no-store');
   assert.deepEqual(empty.body.settings, { netProfile: null, deductionRate: null, ppkOptOut: null,
-    transportType: null, fuelPer100km: null, fuelPricePerL: null });
+    transportType: null, fuelPer100km: null, fuelPricePerL: null, dailyGoal: null });
   assert.equal(empty.body.profiles.length, 6);
   assert.equal(empty.body.transportTypes.length, 5);
   for (const method of ['GET', 'PUT']) {
@@ -729,7 +729,7 @@ test('settings start unconfigured, require authorization and isolate reads and w
   });
   assert.equal(saved.status, 200);
   assert.deepEqual(saved.body.settings, { netProfile: 'unemployed_under_26', deductionRate: '0.19250', ppkOptOut: true,
-    transportType: null, fuelPer100km: null, fuelPricePerL: null });
+    transportType: null, fuelPer100km: null, fuelPricePerL: null, dailyGoal: null });
   assert.deepEqual((await request(`/settings?user_id=${other}`)).body.settings, saved.body.settings);
   assert.equal((await request(`/settings?user_id=${owner}`, { auth: otherToken })).body.settings.netProfile, null);
   await request('/settings', { method: 'PUT', auth: otherToken, body: { netProfile: 'student_under_26', user_id: owner } });

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { validateSettings, validateTransport, transportTypes } from '../src/validators/settingsValidator.js';
+import { validateSettings, validateTransport, validateDailyGoal, transportTypes } from '../src/validators/settingsValidator.js';
 
 test('accepted profiles derive their rates on the server and PPK affects only two profiles', () => {
   for (const [netProfile, withoutPpk, withPpk] of [
@@ -56,4 +56,19 @@ test('transport defaults to no fuel model, needs both fuel params for vehicles a
   assert.deepEqual(validateTransport({ transportType: 'car', fuelPer100km: '7.5', fuelPricePerL: 6 }),
     { transportType: 'car', fuelPer100km: '7.50', fuelPricePerL: '6.000' });
   assert.equal(transportTypes.find(({ value }) => value === 'bike').fuel, false);
+});
+
+test('daily goal is optional, non-negative with grosze, and rejects malformed values', () => {
+  // Brak celu: null/''/undefined daje null.
+  for (const body of [undefined, {}, { dailyGoal: null }, { dailyGoal: '' }]) {
+    assert.deepEqual(validateDailyGoal(body), { dailyGoal: null });
+  }
+  // Prawidłowa wartość normalizuje się do dwóch miejsc po przecinku.
+  assert.deepEqual(validateDailyGoal({ dailyGoal: '200' }), { dailyGoal: '200.00' });
+  assert.deepEqual(validateDailyGoal({ dailyGoal: 150.5 }), { dailyGoal: '150.50' });
+  assert.deepEqual(validateDailyGoal({ dailyGoal: '0' }), { dailyGoal: '0.00' });
+  // Błędne: ujemne, za dużo miejsc, nieliczba.
+  for (const dailyGoal of ['-10', '12.345', 'abc', 'NaN', true]) {
+    assert.throws(() => validateDailyGoal({ dailyGoal }), { status: 400 });
+  }
 });

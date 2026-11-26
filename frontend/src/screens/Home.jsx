@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { getSummary, getDetails } from '../services/api/analytics.js';
 import { getShifts, getActiveShift } from '../services/api/shifts.js';
+import { getSettings } from '../services/api/settings.js';
 import { formatCompactDuration, formatDistance, formatMoney } from '../utils/shiftFormat.js';
 import { todaySummary, todayEarningsFromTrend } from '../utils/todaySummary.js';
 import { hourlyRate } from '../utils/historySummary.js';
@@ -12,6 +13,7 @@ import AnalyticsChart from '../components/AnalyticsChart.jsx';
 import ShiftCard from '../components/ShiftCard.jsx';
 import ActiveShiftTimer from '../components/ActiveShiftTimer.jsx';
 import IncompleteShiftsNotice from '../components/IncompleteShiftsNotice.jsx';
+import DailyGoalProgress from '../components/DailyGoalProgress.jsx';
 import { ChevronRight, Clock, Package, Play, Route, Wallet } from 'lucide-react';
 
 export default function Home({ session, onSessionExpired }) {
@@ -23,9 +25,10 @@ export default function Home({ session, onSessionExpired }) {
     const controller = new AbortController();
     Promise.all([getSummary(session.token, 'current_week', controller.signal, mode),
       getDetails(session.token, 'current_week', 'all', controller.signal, mode),
-      getShifts(session.token, controller.signal), getActiveShift(session.token, controller.signal)])
-      .then(([{ summary }, { details }, { shifts }, { shift }]) => {
-        if (!controller.signal.aborted) setResult({ status: 'success', summary, details, shifts, active: shift });
+      getShifts(session.token, controller.signal), getActiveShift(session.token, controller.signal),
+      getSettings(session.token, controller.signal)])
+      .then(([{ summary }, { details }, { shifts }, { shift }, { settings }]) => {
+        if (!controller.signal.aborted) setResult({ status: 'success', summary, details, shifts, active: shift, settings });
       }).catch((error) => {
         if (controller.signal.aborted) return;
         if (error.status === 401) onSessionExpired();
@@ -79,6 +82,7 @@ export default function Home({ session, onSessionExpired }) {
           <div><dt><Clock size={18} strokeWidth={1.8} aria-hidden="true" />Czas pracy</dt><dd>{formatCompactDuration(today.durationSeconds)}</dd></div>
           <div><dt><Route size={18} strokeWidth={1.8} aria-hidden="true" />Dystans</dt><dd>{formatDistance(today.distanceKm)}</dd></div>
         </dl>
+        <DailyGoalProgress earnings={todayEarningsFromTrend(result.details.trend)} goal={result.settings.dailyGoal} />
       </section>}
       {today && today.incompleteCount > 0 && <p role="status">Zmiany z dzisiaj do uzupełnienia: {today.incompleteCount}. <Link to="/history" className="text-link">Otwórz historię</Link></p>}
 
