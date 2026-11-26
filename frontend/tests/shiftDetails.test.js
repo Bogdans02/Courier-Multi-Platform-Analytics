@@ -3,7 +3,7 @@ import { after, before, test } from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router';
-import { createServer } from 'vite';
+import { createTestServer, SETUP_TIMEOUT_MS, CLEANUP_TIMEOUT_MS } from './helpers/viteServer.mjs';
 import { platformPerOrder, shiftMetrics } from '../src/utils/shiftMetrics.js';
 import { formatDay, formatTimeRange } from '../src/utils/dateFormat.js';
 import { getExpenses } from '../src/services/api/expenses.js';
@@ -80,12 +80,10 @@ let server;
 let ShiftCosts;
 let ShiftPlatformSummary;
 before(async () => {
-  server = await createServer({ server: { middlewareMode: true },
-    optimizeDeps: { noDiscovery: true }, appType: 'custom', logLevel: 'silent' });
+  server = await createTestServer(close => after(close, { timeout: CLEANUP_TIMEOUT_MS }));
   ShiftCosts = (await server.ssrLoadModule('/src/components/ShiftCosts.jsx')).default;
   ShiftPlatformSummary = (await server.ssrLoadModule('/src/components/ShiftPlatformSummary.jsx')).default;
-});
-after(async () => { await server?.close(); });
+}, { timeout: SETUP_TIMEOUT_MS });
 const render = (component, props) => renderToStaticMarkup(createElement(MemoryRouter, null, createElement(component, props)));
 
 test('costs section lists assigned costs and what is left after them', () => {

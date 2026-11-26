@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { createServer } from 'vite';
+import { createTestServer, CLEANUP_TIMEOUT_MS } from './helpers/viteServer.mjs';
 import { initialAnalyticsCalendar, selectAnalyticsCalendar, calendarAnchor, calendarPeriodLabel,
   adjacentCalendarAnchor, calendarPeriodOptions, canStepAnalyticsCalendar, stepAnalyticsCalendar } from '../src/utils/analyticsCalendar.js';
 
@@ -64,9 +64,7 @@ test('period choices include empty months and weeks, while no history offers onl
 });
 
 test('React period selector renders normalized choices, disables future navigation and hides navigation for all', async (t) => {
-  const server = await createServer({ server: { middlewareMode: true },
-    optimizeDeps: { noDiscovery: true }, appType: 'custom', logLevel: 'silent' });
-  t.after(() => server.close());
+  const server = await createTestServer(close => t.after(close, { timeout: CLEANUP_TIMEOUT_MS }));
   const Selector = (await server.ssrLoadModule('/src/components/AnalyticsPeriodSelector.jsx')).default;
   const initial = initialAnalyticsCalendar(new Date('2026-11-04T12:00:00Z'));
   const range = { earliestDate: '2026-09-01', currentDate: '2026-11-04' };

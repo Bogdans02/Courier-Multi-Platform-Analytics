@@ -2,19 +2,17 @@ import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { createServer } from 'vite';
+import { createTestServer, SETUP_TIMEOUT_MS, CLEANUP_TIMEOUT_MS } from './helpers/viteServer.mjs';
 
 let server;
 let Summary;
 let Details;
 before(async () => {
-  server = await createServer({ server: { middlewareMode: true },
-    optimizeDeps: { noDiscovery: true }, appType: 'custom', logLevel: 'silent' });
+  server = await createTestServer(close => after(close, { timeout: CLEANUP_TIMEOUT_MS }));
   const module = await server.ssrLoadModule('/src/components/DashboardSummary.jsx');
   Summary = module.default;
   Details = module.DashboardDetails;
-});
-after(async () => { await server?.close(); });
+}, { timeout: SETUP_TIMEOUT_MS });
 
 const keys = ['totalEarnings', 'totalHours', 'totalOrders', 'earningsPerHour', 'earningsPerKm', 'ordersPerHour'];
 function fixture() {

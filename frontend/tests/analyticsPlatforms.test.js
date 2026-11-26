@@ -2,19 +2,17 @@ import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { createServer } from 'vite';
+import { createTestServer, SETUP_TIMEOUT_MS, CLEANUP_TIMEOUT_MS } from './helpers/viteServer.mjs';
 import { platforms } from '../src/utils/platformEntries.js';
 
 let server;
 let Platforms;
 let DataTable;
 before(async () => {
-  server = await createServer({ server: { middlewareMode: true },
-    optimizeDeps: { noDiscovery: true }, appType: 'custom', logLevel: 'silent' });
+  server = await createTestServer(close => after(close, { timeout: CLEANUP_TIMEOUT_MS }));
   Platforms = (await server.ssrLoadModule('/src/components/AnalyticsPlatforms.jsx')).default;
   DataTable = (await server.ssrLoadModule('/src/components/AnalyticsDataTable.jsx')).default;
-});
-after(async () => { await server?.close(); });
+}, { timeout: SETUP_TIMEOUT_MS });
 
 function fixture() {
   const shares = ['4.76', '9.52', '14.29', '19.05', '23.81', '28.57'];

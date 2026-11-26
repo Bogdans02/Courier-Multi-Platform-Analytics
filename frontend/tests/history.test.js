@@ -3,7 +3,7 @@ import { after, before, test } from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router';
-import { createServer } from 'vite';
+import { createTestServer, SETUP_TIMEOUT_MS, CLEANUP_TIMEOUT_MS } from './helpers/viteServer.mjs';
 import { filterShifts, hourlyRate, monthOf, monthSummary, platformsUsed, shiftCountLabel } from '../src/utils/historySummary.js';
 import { getShifts } from '../src/services/api/shifts.js';
 
@@ -72,11 +72,9 @@ test('history asks the API for one month only when a month is given', async (t) 
 let server;
 let ShiftCard;
 before(async () => {
-  server = await createServer({ server: { middlewareMode: true },
-    optimizeDeps: { noDiscovery: true }, appType: 'custom', logLevel: 'silent' });
+  server = await createTestServer(close => after(close, { timeout: CLEANUP_TIMEOUT_MS }));
   ShiftCard = (await server.ssrLoadModule('/src/components/ShiftCard.jsx')).default;
-});
-after(async () => { await server?.close(); });
+}, { timeout: SETUP_TIMEOUT_MS });
 const card = (props) => renderToStaticMarkup(createElement(MemoryRouter, null, createElement(ShiftCard, props)));
 
 test('history cards show zł/h and a complete button; the Start card stays unchanged', () => {

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { createServer } from 'vite';
+import { createTestServer, SETUP_TIMEOUT_MS, CLEANUP_TIMEOUT_MS } from './helpers/viteServer.mjs';
 import { analyticsChartData, efficiencyTrend } from '../src/utils/analyticsFormat.js';
 import { getDetails } from '../src/services/api/analytics.js';
 
@@ -10,12 +10,10 @@ let server;
 let Efficiency;
 let DataTable;
 before(async () => {
-  server = await createServer({ server: { middlewareMode: true },
-    optimizeDeps: { noDiscovery: true }, appType: 'custom', logLevel: 'silent' });
+  server = await createTestServer(close => after(close, { timeout: CLEANUP_TIMEOUT_MS }));
   Efficiency = (await server.ssrLoadModule('/src/components/AnalyticsEfficiency.jsx')).default;
   DataTable = (await server.ssrLoadModule('/src/components/AnalyticsDataTable.jsx')).default;
-});
-after(async () => { await server?.close(); });
+}, { timeout: SETUP_TIMEOUT_MS });
 
 const selection = { kind: 'week', anchor: '2026-11-02', asOf: '2026-11-04T12:00:00.123Z' };
 const range = { earliestDate: '2026-09-15', currentDate: '2026-11-04' };

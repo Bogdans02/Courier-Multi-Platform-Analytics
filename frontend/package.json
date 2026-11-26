@@ -10,7 +10,7 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "test": "node --test tests/*.test.js",
+    "test": "node scripts/run-tests.mjs",
     "preview": "vite preview",
     "android:sync": "npm run build && cap sync android",
     "android:sync:emulator": "npm run build -- --mode android-emulator && cap sync android",
