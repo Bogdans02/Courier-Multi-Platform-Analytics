@@ -52,6 +52,28 @@ export function validateTransport(body) {
   };
 }
 
+// Kanoniczne platformy. Kolejność ustala kolejność zapisu aktywnych platform.
+export const platformValues = ['glovo', 'bolt_food', 'uber_eats', 'pyszne_pl', 'wolt', 'other'];
+
+// Aktywne platformy są opcjonalne. Brak / wszystkie / puste = null (= wszystkie aktywne, bez konfiguracji).
+// Inaczej: podzbiór kanonicznych bez duplikatów, przynajmniej jedna, w kanonicznej kolejności.
+export function validateActivePlatforms(body) {
+  const value = body?.activePlatforms;
+  if (value === null || value === undefined) return { activePlatforms: null };
+  if (!Array.isArray(value)) throw httpError(400, 'Wybierz przynajmniej jedną platformę.');
+  const selected = new Set();
+  for (const platform of value) {
+    if (!platformValues.includes(platform) || selected.has(platform)) {
+      throw httpError(400, 'Wybierz przynajmniej jedną platformę.');
+    }
+    selected.add(platform);
+  }
+  if (selected.size === 0) throw httpError(400, 'Wybierz przynajmniej jedną platformę.');
+  // Wszystkie platformy aktywne = brak filtra, więc zapisujemy null (spójnie z domyślnym stanem).
+  if (selected.size === platformValues.length) return { activePlatforms: null };
+  return { activePlatforms: platformValues.filter((platform) => selected.has(platform)) };
+}
+
 // Cel dzienny jest opcjonalny. Brak (null/'') = cel nie ustawiony; inaczej liczba nieujemna z groszami.
 export function validateDailyGoal(body) {
   const goal = body?.dailyGoal;

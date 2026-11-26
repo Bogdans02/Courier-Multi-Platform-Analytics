@@ -7,6 +7,13 @@ export const platforms = [
   { value: 'other', label: 'Inne' },
 ];
 
+// Platformy wybrane przez kuriera. null/puste = nie ustawiono = wszystkie aktywne.
+// Filtrujemy po kanonicznej liście, więc kolejność i etykiety zostają te same.
+export function activePlatformList(activePlatforms) {
+  if (!activePlatforms?.length) return platforms;
+  return platforms.filter((platform) => activePlatforms.includes(platform.value));
+}
+
 export function validatePlatformEntries(entries) {
   if (!Array.isArray(entries) || entries.length < 1 || entries.length > platforms.length) {
     return 'Dodaj od jednej do sześciu platform.';

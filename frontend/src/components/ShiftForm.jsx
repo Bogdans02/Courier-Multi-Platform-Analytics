@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { formatMoney, toLocalDateTime } from '../utils/shiftFormat.js';
 import { shiftFormPayload, validateShiftForm } from '../utils/shiftValidation.js';
-import { platforms, platformTotals } from '../utils/platformEntries.js';
+import { platforms, platformTotals, activePlatformList } from '../utils/platformEntries.js';
 
-export default function ShiftForm({ shift, initialEntries, gpsDistance = null, onSubmit, onCancel }) {
+export default function ShiftForm({ shift, initialEntries, gpsDistance = null, activePlatforms = null, onSubmit, onCancel }) {
   // GPS podpowiada dystans tylko gdy zmiana nie ma jeszcze zapisanego km. Pole zostaje
   // w pełni ręczne: po edycji wartości źródło wraca na "manual", tak jak przy wpisaniu od zera.
   const gpsSeed = shift.distanceKm === null && gpsDistance?.km != null;
+  // Nowe wpisy dodajemy tylko spośród aktywnych platform; pierwszy wpis startuje od pierwszej aktywnej.
+  const active = activePlatformList(activePlatforms);
   const [values, setValues] = useState({
     startedAt: toLocalDateTime(shift.startedAt),
     endedAt: toLocalDateTime(shift.endedAt),
@@ -14,11 +16,15 @@ export default function ShiftForm({ shift, initialEntries, gpsDistance = null, o
     distanceSource: shift.distanceKm !== null ? (shift.distanceSource ?? 'manual') : (gpsSeed ? 'gps' : 'manual'),
     platformEntries: shift.platformEntries.length ? shift.platformEntries.map((entry) => ({
       platform: entry.platform, earningsGross: entry.earningsGross, ordersCount: String(entry.ordersCount),
-    })) : initialEntries?.length ? initialEntries : [{ platform: 'glovo', earningsGross: '', ordersCount: '' }],
+    })) : initialEntries?.length ? initialEntries : [{ platform: active[0].value, earningsGross: '', ordersCount: '' }],
   });
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
   const totals = platformTotals(values.platformEntries);
+  // W <select> pokazujemy aktywne oraz platformy już obecne w tej zmianie (nawet jeśli teraz wyłączone),
+  // żeby edycja starej zmiany nie gubiła ani nie zmieniała istniejących wpisów. Filtr działa tylko na dodawanie.
+  const present = new Set(values.platformEntries.map((entry) => entry.platform));
+  const optionList = platforms.filter(({ value }) => active.some((item) => item.value === value) || present.has(value));
 
   function change(event) {
     setValues({ ...values, [event.target.name]: event.target.value });
@@ -36,7 +42,8 @@ export default function ShiftForm({ shift, initialEntries, gpsDistance = null, o
   }
 
   function addEntry() {
-    const next = platforms.find(({ value }) => !values.platformEntries.some((entry) => entry.platform === value));
+    // Dodajemy tylko spośród aktywnych platform, których jeszcze nie ma w zmianie.
+    const next = active.find(({ value }) => !values.platformEntries.some((entry) => entry.platform === value));
     if (next) setValues({ ...values, platformEntries: [...values.platformEntries,
       { platform: next.value, earningsGross: '', ordersCount: '' }] });
   }
@@ -90,7 +97,7 @@ export default function ShiftForm({ shift, initialEntries, gpsDistance = null, o
               <select id={`platform-${index}`} value={entry.platform} required
                 onChange={(event) => changeEntry(index, 'platform', event.target.value)}
                 className="form-input">
-                {platforms.map(({ value, label }) => <option key={value} value={value}
+                {optionList.map(({ value, label }) => <option key={value} value={value}
                   disabled={values.platformEntries.some((other, position) => position !== index && other.platform === value)}>{label}</option>)}
               </select>
             </div>
@@ -110,7 +117,7 @@ export default function ShiftForm({ shift, initialEntries, gpsDistance = null, o
               className="button-danger">Usuń platformę {index + 1}</button>}
           </fieldset>
         ))}
-        <button type="button" disabled={values.platformEntries.length === platforms.length} onClick={addEntry}
+        <button type="button" disabled={values.platformEntries.length >= optionList.length} onClick={addEntry}
           className="button-secondary w-full">+ Dodaj kolejną platformę</button>
         <div aria-live="polite" className="rounded-ui bg-surface-raised p-3">
           <p>Łączny zarobek brutto: <strong>{formatMoney(totals.totalEarnings)}</strong></p>

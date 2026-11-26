@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { validateSettings, validateTransport, validateDailyGoal, transportTypes } from '../src/validators/settingsValidator.js';
+import { validateSettings, validateTransport, validateDailyGoal, validateActivePlatforms, transportTypes } from '../src/validators/settingsValidator.js';
 
 test('accepted profiles derive their rates on the server and PPK affects only two profiles', () => {
   for (const [netProfile, withoutPpk, withPpk] of [
@@ -70,5 +70,22 @@ test('daily goal is optional, non-negative with grosze, and rejects malformed va
   // Błędne: ujemne, za dużo miejsc, nieliczba.
   for (const dailyGoal of ['-10', '12.345', 'abc', 'NaN', true]) {
     assert.throws(() => validateDailyGoal({ dailyGoal }), { status: 400 });
+  }
+});
+
+test('active platforms default to null, store a canonical subset and reject empty or unknown values', () => {
+  // Brak konfiguracji lub wszystkie platformy = null (= wszystkie aktywne).
+  for (const body of [undefined, {}, { activePlatforms: null }]) {
+    assert.deepEqual(validateActivePlatforms(body), { activePlatforms: null });
+  }
+  assert.deepEqual(validateActivePlatforms({
+    activePlatforms: ['glovo', 'bolt_food', 'uber_eats', 'pyszne_pl', 'wolt', 'other'],
+  }), { activePlatforms: null });
+  // Podzbiór zapisuje się w kanonicznej kolejności, niezależnie od kolejności wejścia.
+  assert.deepEqual(validateActivePlatforms({ activePlatforms: ['wolt', 'glovo'] }),
+    { activePlatforms: ['glovo', 'wolt'] });
+  // Błędne: puste, nie-tablica, nieznana platforma, duplikat.
+  for (const activePlatforms of [[], 'glovo', ['plane'], ['glovo', 'glovo']]) {
+    assert.throws(() => validateActivePlatforms({ activePlatforms }), { status: 400 });
   }
 });

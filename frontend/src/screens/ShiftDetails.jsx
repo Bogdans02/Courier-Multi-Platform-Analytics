@@ -131,7 +131,8 @@ export default function ShiftDetails({ session, onSessionExpired }) {
 
         {editing && shift.status === 'completed' ? (
           // Edycja zastępuje podgląd, żeby te same dane nie były na ekranie dwa razy.
-          <ShiftForm key={shift.id} shift={shift} gpsDistance={gpsDistance} initialEntries={!shift.platformEntries.length && draft?.hasDraft
+          <ShiftForm key={shift.id} shift={shift} gpsDistance={gpsDistance} activePlatforms={transport?.activePlatforms}
+            initialEntries={!shift.platformEntries.length && draft?.hasDraft
             ? entriesFromOrderEvents(draft.orderEvents) : undefined} onSubmit={save} onCancel={() => setEditing(false)} />
         ) : <>
           {shift.status === 'active' && <section className="card space-y-3">

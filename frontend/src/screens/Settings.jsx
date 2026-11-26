@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { getSettings, saveSettings } from '../services/api/settings.js';
 import BackLink from '../components/BackLink.jsx';
-import { settingsPayload, transportPayload, dailyGoalPayload, estimatedRate, formatRate } from '../utils/netSettings.js';
+import { settingsPayload, transportPayload, dailyGoalPayload, activePlatformsPayload, estimatedRate, formatRate } from '../utils/netSettings.js';
+import { platforms } from '../utils/platformEntries.js';
 
 export default function Settings({ session, onSessionExpired }) {
   const [status, setStatus] = useState('loading');
@@ -15,6 +16,8 @@ export default function Settings({ session, onSessionExpired }) {
   const [fuelPer100km, setFuelPer100km] = useState('');
   const [fuelPricePerL, setFuelPricePerL] = useState('');
   const [dailyGoal, setDailyGoal] = useState('');
+  // Domyślnie wszystkie aktywne; null z serwera oznacza „nie ustawiono” = wszystkie.
+  const [activePlatforms, setActivePlatforms] = useState(platforms.map(({ value }) => value));
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [pending, setPending] = useState(false);
@@ -33,6 +36,7 @@ export default function Settings({ session, onSessionExpired }) {
       setFuelPer100km(settings.fuelPer100km == null ? '' : String(Number(settings.fuelPer100km)));
       setFuelPricePerL(settings.fuelPricePerL == null ? '' : String(Number(settings.fuelPricePerL)));
       setDailyGoal(settings.dailyGoal == null ? '' : String(Number(settings.dailyGoal)));
+      setActivePlatforms(settings.activePlatforms ?? platforms.map(({ value }) => value));
       setStatus('success');
     }).catch((error) => {
       if (controller.signal.aborted) return;
@@ -50,7 +54,8 @@ export default function Settings({ session, onSessionExpired }) {
     try {
       body = { ...settingsPayload(profiles, netProfile, ppkOptOut, percent),
         ...transportPayload(transportTypes, transportType, fuelPer100km, fuelPricePerL),
-        ...dailyGoalPayload(dailyGoal) };
+        ...dailyGoalPayload(dailyGoal),
+        ...activePlatformsPayload(activePlatforms, platforms.map(({ value }) => value)) };
     }
     catch (error) { setError(error.message); return; }
     setPending(true);
@@ -61,6 +66,14 @@ export default function Settings({ session, onSessionExpired }) {
       if (error.status === 401) onSessionExpired();
       else setError(error.message);
     } finally { setPending(false); }
+  }
+
+  // Przełącza platformę; ostatniej aktywnej nie można odznaczyć (musi zostać co najmniej jedna).
+  function togglePlatform(value) {
+    setError('');
+    setActivePlatforms((current) => (current.includes(value)
+      ? (current.length > 1 ? current.filter((item) => item !== value) : current)
+      : [...current, value]));
   }
 
   const profile = profiles.find(({ value }) => value === netProfile);
@@ -115,6 +128,19 @@ export default function Settings({ session, onSessionExpired }) {
           <input id="fuel-price" inputMode="decimal" value={fuelPricePerL}
             onChange={(event) => { setFuelPricePerL(event.target.value); setError(''); }} className="form-input" />
         </>}
+      </fieldset>
+      <fieldset disabled={pending} className="space-y-3 disabled:opacity-60">
+        <legend className="font-semibold">Moje platformy</legend>
+        <p className="muted text-sm">Zaznacz platformy, na których pracujesz. W formularzu zmiany zobaczysz tylko je. Musi zostać zaznaczona przynajmniej jedna.</p>
+        {platforms.map(({ value, label }) => {
+          const checked = activePlatforms.includes(value);
+          const lastOne = checked && activePlatforms.length === 1;
+          return <label key={value} className="flex min-h-11 items-center gap-3 py-1">
+            <input type="checkbox" checked={checked} disabled={lastOne}
+              onChange={() => { togglePlatform(value); setMessage(''); }} />
+            {label}
+          </label>;
+        })}
       </fieldset>
       <fieldset disabled={pending} className="space-y-3 disabled:opacity-60" onChange={() => setMessage('')}>
         <legend className="font-semibold">Cel dzienny</legend>

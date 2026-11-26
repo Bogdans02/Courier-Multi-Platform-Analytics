@@ -34,6 +34,14 @@ function fuelNumber(value, maxDecimals, field) {
   return Number(text).toFixed(maxDecimals);
 }
 
+// Aktywne platformy: wybrane przez kuriera. Wszystkie zaznaczone = brak filtra (null).
+// Pusty wybór jest blokowany w UI, ale pilnujemy tego też tutaj.
+export function activePlatformsPayload(selected, allValues) {
+  if (!selected.length) throw new Error('Zaznacz przynajmniej jedną platformę.');
+  if (selected.length === allValues.length) return { activePlatforms: null };
+  return { activePlatforms: allValues.filter((value) => selected.includes(value)) };
+}
+
 // Cel dzienny jest opcjonalny: puste pole = brak celu (null), inaczej liczba nieujemna z groszami.
 export function dailyGoalPayload(dailyGoal) {
   if (String(dailyGoal).trim() === '') return { dailyGoal: null };
